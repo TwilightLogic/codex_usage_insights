@@ -1,0 +1,24 @@
+{
+  "profiles": [
+    {
+      "name": "gpt-5.4",
+      "description": "Public OpenAI API pricing proxy for GPT-5.4 usage.",
+      "reviewed_on": "2026-03-16",
+      "rates_per_million": {
+        "input_tokens": 2.5,
+        "cached_input_tokens": 0.25,
+        "output_tokens": 15.0
+      }
+    },
+    {
+      "name": "gpt-5-mini",
+      "description": "Public OpenAI API pricing proxy for GPT-5 mini usage.",
+      "reviewed_on": "2026-03-16",
+      "rates_per_million": {
+        "input_tokens": 0.25,
+        "cached_input_tokens": 0.025,
+        "output_tokens": 2.0
+      }
+    }
+  ]
+}

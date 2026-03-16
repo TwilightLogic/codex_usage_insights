@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codex-usage-analytics"
+version = "0.1.0"
+description = "Reconstruct local Codex usage reports from session logs."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+codex-usage-analytics = "codex_usage_analytics.cli:main"
+
+[tool.setuptools]
+packages = ["codex_usage_analytics"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+codex_usage_analytics = ["pricing_profiles.json"]

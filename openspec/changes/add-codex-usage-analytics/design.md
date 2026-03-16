@@ -36,6 +36,8 @@ Alternative considered:
 
 Multiple `token_count` events may appear in the same session file as the conversation progresses. The parser will use the highest observed `total_token_usage` snapshot for a file as the session total, because summing repeated snapshots would double-count the same session growth.
 
+For calendar grouping, the canonical session timestamp will come from the winning `token_count` event itself when available, not just from the initial `session_meta` event. This keeps long-running sessions that cross midnight from assigning their full token total to the day the session started.
+
 Alternative considered:
 - Sum every `last_token_usage` payload. Rejected for the initial version because not every event guarantees a clean incremental delta and missing events would lead to inconsistent totals.
 
@@ -53,14 +55,22 @@ Alternative considered:
 
 ### Make pricing profile-driven instead of hard-coding one formula
 
-The project will use named pricing profiles with configurable rates for input, cached input, and output-style tokens. Reports will show the profile name and clearly label the resulting dollar value as an estimate. When no pricing profile is available, the tool will still emit token totals and mark cost as unavailable.
+The project will use named pricing profiles with configurable rates for uncached input, cached input, and output tokens. Cost estimation will interpret `cached_input_tokens` as a priced subset of `input_tokens`, so the estimated billable input will be:
+
+- `uncached_input_tokens = input_tokens - cached_input_tokens`
+- `cached_input_tokens = cached_input_tokens`
+- `output_tokens = output_tokens`
+
+The implementation will also treat `reasoning_output_tokens` as a reported subset of `output_tokens`, not as an additional billable bucket. Reports will show the profile name, the effective formula, and clearly label the resulting dollar value as an estimate. When no pricing profile is available, the tool will still emit token totals and mark cost as unavailable.
 
 Alternative considered:
-- Hard-code one assumed Codex cost model. Rejected because ChatGPT-authenticated Codex usage does not map cleanly to one official public billing contract and public API pricing can change.
+- Bill `input_tokens`, `cached_input_tokens`, `output_tokens`, and `reasoning_output_tokens` as four independent buckets. Rejected because observed Codex logs indicate `cached_input_tokens` is a subset of `input_tokens` and `reasoning_output_tokens` is a subset of `output_tokens`, which would double-count costs.
 
 ### Start with CLI and JSON outputs
 
 The first implementation will provide a human-readable terminal report and a machine-readable JSON report. This keeps scope aligned with the research goal and helps validate correctness before spending effort on a richer UI.
+
+The terminal report will use labeled sections and lightweight visual markers so the user can quickly separate report scope, scan status, token totals, pricing status, period buckets, and warnings. This improves usability without changing the underlying JSON contract.
 
 Alternative considered:
 - Build a local dashboard first. Rejected because it increases scope before the reporting model is stable and existing tools already cover some monitoring-oriented UI use cases.
@@ -92,5 +102,5 @@ This change only creates planning artifacts in the current repository, so there 
 ## Open Questions
 
 - Should the yearly view mean calendar year only, or should we also support rolling 12-month summaries?
-- Should `reasoning_output_tokens` use the same rate as `output_tokens` in built-in pricing profiles, or remain independently configurable?
+- Should the tool auto-select a pricing profile from model hints in session logs when the user does not pass `--pricing-profile`?
 - Is JSON enough for the first machine-readable format, or do we also want CSV export in the first release?

@@ -7,7 +7,7 @@ The system SHALL scan local Codex session files and derive a canonical usage rec
 - **WHEN** the system reads a Codex session file that contains one or more `token_count` events with `total_token_usage`
 - **THEN** it MUST produce one canonical session usage record for that file
 - **THEN** the record MUST preserve `input_tokens`, `cached_input_tokens`, `output_tokens`, `reasoning_output_tokens`, and `total_tokens`
-- **THEN** the record MUST retain the session timestamp needed for calendar grouping
+- **THEN** the record MUST retain the timestamp of the selected usage snapshot for calendar grouping when that event timestamp is available
 
 #### Scenario: Session file has no usable token snapshot
 - **WHEN** the system reads a session file that has no usable `token_count` usage payload
@@ -38,6 +38,8 @@ The system SHALL compute an API-equivalent estimated dollar cost when a pricing 
 #### Scenario: Pricing profile is available
 - **WHEN** the user runs a report with a valid pricing profile
 - **THEN** the system MUST calculate an estimated cost from the aggregated token buckets using that profile's rates
+- **THEN** the system MUST treat `cached_input_tokens` as a priced subset of `input_tokens` rather than billing both full input and cached input for the same tokens
+- **THEN** the system MUST treat `reasoning_output_tokens` as a reported subset of `output_tokens` and MUST NOT bill them separately
 - **THEN** the report MUST identify the pricing profile used
 - **THEN** the report MUST label the resulting dollar value as an estimate rather than an official bill
 
@@ -65,6 +67,7 @@ The system SHALL make aggregated usage reports available in both a human-readabl
 #### Scenario: User requests the default local report
 - **WHEN** the user runs the reporting command without a machine-readable output flag
 - **THEN** the system MUST render a human-readable summary that shows the reporting period, timezone, token totals, and estimated cost or cost status
+- **THEN** the human-readable summary MUST group report scope, scan summary, token totals, pricing details, and warnings into clearly labeled sections
 
 #### Scenario: User requests structured output
 - **WHEN** the user requests structured output
