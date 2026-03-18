@@ -1,0 +1,75 @@
+{
+  "": {
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/master.swiftdeps"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/App/AppModel.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/AppModel.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/AppModel.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/AppModel~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/AppModel.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/AppModel.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/App/CodexUsageInsightsApp.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/CodexUsageInsightsApp.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/CodexUsageInsightsApp.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/CodexUsageInsightsApp~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/CodexUsageInsightsApp.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/CodexUsageInsightsApp.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/App/WorkspaceRootView.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/WorkspaceRootView.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/WorkspaceRootView.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/WorkspaceRootView~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/WorkspaceRootView.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/WorkspaceRootView.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Core/Domain/Models.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Models.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Models.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Models~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Models.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Models.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Core/Domain/Repository.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Repository.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Repository.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Repository~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Repository.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/Repository.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Core/Services/DirectorySelectionService.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/DirectorySelectionService.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/DirectorySelectionService.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/DirectorySelectionService~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/DirectorySelectionService.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/DirectorySelectionService.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Core/Services/LogImportService.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/LogImportService.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/LogImportService.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/LogImportService~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/LogImportService.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/LogImportService.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Features/Overview/OverviewView.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/OverviewView.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/OverviewView.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/OverviewView~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/OverviewView.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/OverviewView.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/Features/Shared/PlaceholderDestinationView.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/PlaceholderDestinationView.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/PlaceholderDestinationView.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/PlaceholderDestinationView~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/PlaceholderDestinationView.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/PlaceholderDestinationView.dia"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Sources/CodexUsageInsightsApp/UIComponents/MetricTileView.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/MetricTileView.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/MetricTileView.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/MetricTileView~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/MetricTileView.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsApp.build/MetricTileView.dia"
+  }
+}

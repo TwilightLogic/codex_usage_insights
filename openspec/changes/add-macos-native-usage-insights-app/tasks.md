@@ -1,35 +1,35 @@
 ## 1. Bootstrap the macOS app foundation
 
 - [ ] 1.1 Create the macOS project under `apps/macos` with app, unit-test, and UI-test targets
-- [ ] 1.2 Add the initial folder structure for `App`, `Core`, `Features`, and shared UI components
+- [x] 1.2 Add the initial folder structure for `App`, `Core`, `Features`, and shared UI components
 - [ ] 1.3 Add dependencies and project wiring for `GRDB`, `Charts`, and fixture-based test resources
-- [ ] 1.4 Implement the initial `NavigationSplitView` shell with destinations for `Dashboard`, `Sessions`, `Models`, `Cost`, and `Settings`
+- [x] 1.4 Implement the initial `NavigationSplitView` shell with destinations for `Dashboard`, `Sessions`, `Models`, `Cost`, and `Settings`
 
 ## 2. Define the domain and persistence model
 
-- [ ] 2.1 Implement Swift domain models for `UsageSession`, `UsageSegment`, `ImportWarning`, `ImportedFile`, and `PricingProfile`
+- [x] 2.1 Implement Swift domain models for `UsageSession`, `UsageSegment`, `ImportWarning`, `ImportedFile`, and `PricingProfile`
 - [ ] 2.2 Create the SQLite schema and migration `v1` for imported files, sessions, segments, warnings, and pricing profiles
-- [ ] 2.3 Add repository interfaces for import, analytics queries, session detail lookup, and pricing-profile access
+- [x] 2.3 Add repository interfaces for import, analytics queries, session detail lookup, and pricing-profile access
 
 ## 3. Port parsing and import semantics from local logs
 
 - [ ] 3.1 Implement a streaming JSONL parser for `session_meta`, `turn_context`, and `token_count` events
-- [ ] 3.2 Derive stable session totals from cumulative usage snapshots without double-counting repeated totals
+- [x] 3.2 Derive stable session totals from cumulative usage snapshots without double-counting repeated totals
 - [ ] 3.3 Derive timestamp-ordered usage segments from cumulative snapshots and attribute them to the latest known model context
 - [ ] 3.4 Persist import warnings for skipped files, malformed payloads, missing usage snapshots, and unsupported metrics
 - [ ] 3.5 Add parser and importer tests using the existing repository fixtures plus new cases for model attribution and unknown-model segments
 
 ## 4. Implement import, onboarding, and refresh flows
 
-- [ ] 4.1 Build first-launch onboarding that lets the user choose a Codex session root with `NSOpenPanel`
-- [ ] 4.2 Implement initial import progress reporting with scanned-file, imported-session, and warning counts
+- [x] 4.1 Build first-launch onboarding that lets the user choose a Codex session root with `NSOpenPanel`
+- [x] 4.2 Implement initial import progress reporting with scanned-file, imported-session, and warning counts
 - [ ] 4.3 Implement refresh with file fingerprint deduplication so unchanged logs are not re-imported
 - [ ] 4.4 Add stale-on-foreground auto-refresh and a manual toolbar refresh action
 - [ ] 4.5 Add recoverable error handling for missing paths, permission failures, and local store reset
 
 ## 5. Build the analytics query layer
 
-- [ ] 5.1 Implement summary queries for total tokens, uncached input, cached input, output, estimated cost status, and counted sessions
+- [x] 5.1 Implement summary queries for total tokens, uncached input, cached input, output, estimated cost status, and counted sessions
 - [ ] 5.2 Implement day, week, and month bucket queries for trend charts from the active global filter state
 - [ ] 5.3 Implement searchable and sortable session list queries plus session-detail payload assembly
 - [ ] 5.4 Implement model aggregate queries that group attributed segments and preserve an `Unknown Model` bucket

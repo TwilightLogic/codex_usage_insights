@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/master.swiftdeps"
+  },
+  "/Users/zibin/Downloads/codex_usage_insights/apps/macos/Tests/CodexUsageInsightsAppTests/LogImportServiceTests.swift": {
+    "dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/LogImportServiceTests.d",
+    "object": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/LogImportServiceTests.swift.o",
+    "swiftmodule": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/LogImportServiceTests~partial.swiftmodule",
+    "swift-dependencies": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/LogImportServiceTests.swiftdeps",
+    "diagnostics": "/Users/zibin/Downloads/codex_usage_insights/apps/macos/.build/arm64-apple-macosx/debug/CodexUsageInsightsAppTests.build/LogImportServiceTests.dia"
+  }
+}
