@@ -86,6 +86,44 @@ struct UsageSession: Identifiable, Hashable, Sendable {
     let workspacePath: String?
     let observedAt: Date
     let usage: TokenUsage
+
+    var workspaceName: String {
+        workspacePath ?? "Unknown Workspace"
+    }
+
+    var sourceFilename: String {
+        URL(fileURLWithPath: sourcePath).lastPathComponent
+    }
+
+    var totalTokens: Int {
+        usage.totalTokens
+    }
+}
+
+struct SessionDetailPayload: Hashable, Sendable {
+    let session: UsageSession
+    let warnings: [ImportWarning]
+}
+
+enum SessionListSort: String, Hashable, Sendable {
+    case observedAtDescending
+    case observedAtAscending
+    case totalTokensDescending
+    case totalTokensAscending
+    case sessionIDAscending
+    case sessionIDDescending
+    case workspaceAscending
+    case workspaceDescending
+}
+
+struct SessionListQuery: Hashable, Sendable {
+    let searchText: String
+    let sort: SessionListSort
+
+    static let `default` = SessionListQuery(
+        searchText: "",
+        sort: .observedAtDescending
+    )
 }
 
 struct UsageSegment: Identifiable, Hashable, Sendable {

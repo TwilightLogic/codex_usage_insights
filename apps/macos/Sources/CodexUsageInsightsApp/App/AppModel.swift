@@ -9,6 +9,8 @@ final class AppModel {
     var selectedDirectoryURL: URL?
     var importProgress: ImportProgress?
     var summary: UsageOverviewSummary?
+    var importedSessions: [UsageSession] = []
+    var sessionRows: [UsageSession] = []
     var recentWarnings: [ImportWarning] = []
     var errorMessage: String?
 
@@ -102,6 +104,8 @@ final class AppModel {
                 await repository.replace(with: result)
 
                 summary = await repository.currentSummary()
+                importedSessions = await repository.allSessions()
+                sessionRows = await repository.sessions(matching: .default)
                 recentWarnings = Array(result.warnings.prefix(5))
                 importProgress = nil
                 emitAutomationOutputIfNeeded(for: result.summary)
@@ -110,6 +114,26 @@ final class AppModel {
                 errorMessage = error.localizedDescription
                 emitAutomationFailureIfNeeded(error)
             }
+        }
+    }
+
+    func sessionDetail(for sessionID: String?) async -> SessionDetailPayload? {
+        guard let sessionID else {
+            return nil
+        }
+
+        return await repository.sessionDetail(withID: sessionID)
+    }
+
+    func refreshSessionRows(
+        searchText: String,
+        sort: SessionListSort
+    ) {
+        let repository = self.repository
+        let query = SessionListQuery(searchText: searchText, sort: sort)
+
+        Task {
+            sessionRows = await repository.sessions(matching: query)
         }
     }
 

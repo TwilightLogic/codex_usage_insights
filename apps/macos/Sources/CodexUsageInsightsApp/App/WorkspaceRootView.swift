@@ -16,7 +16,9 @@ struct WorkspaceRootView: View {
                 switch model.selectedDestination ?? .dashboard {
                 case .dashboard:
                     OverviewView(model: model)
-                case .sessions, .models, .cost, .settings:
+                case .sessions:
+                    SessionsView(model: model)
+                case .models, .cost, .settings:
                     PlaceholderDestinationView(destination: model.selectedDestination ?? .dashboard)
                 }
             }
