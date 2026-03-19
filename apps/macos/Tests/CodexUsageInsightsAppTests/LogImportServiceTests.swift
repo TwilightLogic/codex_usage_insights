@@ -13,7 +13,11 @@ struct LogImportServiceTests {
         defer { try? FileManager.default.removeItem(at: fixtureDirectory) }
 
         let service = LogImportService()
-        let result = try await service.importLogs(from: fixtureDirectory, progress: { _ in })
+        let result = try await service.importLogs(
+            from: fixtureDirectory,
+            previousResult: nil,
+            progress: { _ in }
+        )
 
         #expect(result.summary.scannedFiles == 1)
         #expect(result.summary.countedSessions == 1)
@@ -36,12 +40,50 @@ struct LogImportServiceTests {
         defer { try? FileManager.default.removeItem(at: fixtureDirectory) }
 
         let service = LogImportService()
-        let result = try await service.importLogs(from: fixtureDirectory, progress: { _ in })
+        let result = try await service.importLogs(
+            from: fixtureDirectory,
+            previousResult: nil,
+            progress: { _ in }
+        )
 
         #expect(result.summary.scannedFiles == 3)
         #expect(result.summary.countedSessions == 1)
         #expect(result.summary.excludedFiles == 2)
         #expect(result.summary.warningCount == 2)
+    }
+
+    @Test
+    func refreshReusesPreviouslyImportedFilesWhenMetadataIsUnchanged() async throws {
+        let fixtureDirectory = try makeFixtureDirectory(
+            named: [
+                "session_with_growth.jsonl"
+            ]
+        )
+        defer { try? FileManager.default.removeItem(at: fixtureDirectory) }
+
+        let parseRecorder = ParseRecorder()
+        let service = LogImportService(
+            didParseFile: { url in
+                parseRecorder.record(url.path)
+            }
+        )
+
+        let firstResult = try await service.importLogs(
+            from: fixtureDirectory,
+            previousResult: nil,
+            progress: { _ in }
+        )
+        let secondResult = try await service.importLogs(
+            from: fixtureDirectory,
+            previousResult: firstResult,
+            progress: { _ in }
+        )
+
+        #expect(parseRecorder.count == 1)
+        #expect(secondResult.summary.scannedFiles == 1)
+        #expect(secondResult.summary.countedSessions == 1)
+        #expect(secondResult.summary.usage.totalTokens == firstResult.summary.usage.totalTokens)
+        #expect(secondResult.sessions == firstResult.sessions)
     }
 
     private func makeFixtureDirectory(named files: [String]) throws -> URL {
@@ -67,5 +109,22 @@ struct LogImportServiceTests {
             .appendingPathComponent("tests", isDirectory: true)
             .appendingPathComponent("fixtures", isDirectory: true)
             .appendingPathComponent("sessions", isDirectory: true)
+    }
+}
+
+private final class ParseRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var parsedPaths: [String] = []
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return parsedPaths.count
+    }
+
+    func record(_ path: String) {
+        lock.lock()
+        parsedPaths.append(path)
+        lock.unlock()
     }
 }

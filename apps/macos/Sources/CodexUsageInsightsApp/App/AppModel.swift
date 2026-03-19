@@ -5,10 +5,15 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
+    private let foregroundRefreshStalenessInterval: TimeInterval = 60
+
     var selectedDestination: SidebarDestination? = .dashboard
     var selectedDirectoryURL: URL?
     var importProgress: ImportProgress?
+    var selectedTrendGranularity: TrendGranularity = .day
     var summary: UsageOverviewSummary?
+    var trendBuckets: [UsageTrendBucket] = []
+    var topSessions: [UsageSession] = []
     var importedSessions: [UsageSession] = []
     var sessionRows: [UsageSession] = []
     var recentWarnings: [ImportWarning] = []
@@ -28,6 +33,9 @@ final class AppModel {
 
     @ObservationIgnored
     private var automaticImportDidRun = false
+
+    @ObservationIgnored
+    private var latestImportResult: ImportResult?
 
     init(
         directoryPicker: DirectoryPicking = AppKitDirectoryPicker(),
@@ -53,6 +61,10 @@ final class AppModel {
         selectedDirectoryURL != nil && !isImporting
     }
 
+    var canRefresh: Bool {
+        selectedDirectoryURL != nil && summary != nil && !isImporting
+    }
+
     func chooseDirectory() {
         if let directoryURL = directoryPicker.pickDirectory() {
             selectedDirectoryURL = directoryURL
@@ -73,12 +85,11 @@ final class AppModel {
     }
 
     func importLogs() {
-        guard let directoryURL = selectedDirectoryURL else {
+        guard !isImporting, let directoryURL = selectedDirectoryURL else {
             return
         }
 
         errorMessage = nil
-        recentWarnings = []
         importProgress = ImportProgress(
             totalFiles: 0,
             processedFiles: 0,
@@ -94,16 +105,36 @@ final class AppModel {
 
         let importService = self.importService
         let repository = self.repository
+        let previousResult = latestImportResult?.summary.inputPath == directoryURL.path
+            ? latestImportResult
+            : nil
 
         Task {
             do {
                 let result = try await importService.importLogs(
                     from: directoryURL,
+                    previousResult: previousResult,
                     progress: progressHandler
                 )
                 await repository.replace(with: result)
 
+                latestImportResult = result
                 summary = await repository.currentSummary()
+                trendBuckets = await repository.trendBuckets(
+                    matching: TrendQuery(
+                        granularity: selectedTrendGranularity,
+                        dateInterval: nil
+                    ),
+                    calendar: .autoupdatingCurrent
+                )
+                topSessions = Array(
+                    await repository.sessions(
+                        matching: SessionListQuery(
+                            searchText: "",
+                            sort: .totalTokensDescending
+                        )
+                    ).prefix(5)
+                )
                 importedSessions = await repository.allSessions()
                 sessionRows = await repository.sessions(matching: .default)
                 recentWarnings = Array(result.warnings.prefix(5))
@@ -115,6 +146,19 @@ final class AppModel {
                 emitAutomationFailureIfNeeded(error)
             }
         }
+    }
+
+    func refreshIfNeededOnForeground() {
+        guard canRefresh, let summary else {
+            return
+        }
+
+        let secondsSinceLastImport = Date().timeIntervalSince(summary.importedAt)
+        guard secondsSinceLastImport >= foregroundRefreshStalenessInterval else {
+            return
+        }
+
+        importLogs()
     }
 
     func sessionDetail(for sessionID: String?) async -> SessionDetailPayload? {
@@ -135,6 +179,33 @@ final class AppModel {
         Task {
             sessionRows = await repository.sessions(matching: query)
         }
+    }
+
+    func refreshDashboardData() {
+        let repository = self.repository
+        let selectedTrendGranularity = self.selectedTrendGranularity
+
+        Task {
+            trendBuckets = await repository.trendBuckets(
+                matching: TrendQuery(
+                    granularity: selectedTrendGranularity,
+                    dateInterval: nil
+                ),
+                calendar: .autoupdatingCurrent
+            )
+            topSessions = Array(
+                await repository.sessions(
+                    matching: SessionListQuery(
+                        searchText: "",
+                        sort: .totalTokensDescending
+                    )
+                ).prefix(5)
+            )
+        }
+    }
+
+    func openSessionsWorkspace() {
+        selectedDestination = .sessions
     }
 
     private func emitAutomationOutputIfNeeded(for summary: UsageOverviewSummary) {

@@ -126,6 +126,44 @@ struct SessionListQuery: Hashable, Sendable {
     )
 }
 
+enum TrendGranularity: String, CaseIterable, Identifiable, Sendable {
+    case day
+    case week
+    case month
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .day:
+            return "Daily"
+        case .week:
+            return "Weekly"
+        case .month:
+            return "Monthly"
+        }
+    }
+}
+
+struct TrendQuery: Hashable, Sendable {
+    let granularity: TrendGranularity
+    let dateInterval: DateInterval?
+
+    static let `default` = TrendQuery(
+        granularity: .day,
+        dateInterval: nil
+    )
+}
+
+struct UsageTrendBucket: Identifiable, Hashable, Sendable {
+    let startDate: Date
+    let usage: TokenUsage
+
+    var id: Date {
+        startDate
+    }
+}
+
 struct UsageSegment: Identifiable, Hashable, Sendable {
     let id: String
     let sessionID: String

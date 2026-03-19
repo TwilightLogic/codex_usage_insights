@@ -2,6 +2,9 @@ import SwiftUI
 
 @main
 struct CodexUsageInsightsApp: App {
+    @NSApplicationDelegateAdaptor(AppActivationDelegate.self)
+    private var appActivationDelegate
+
     @State private var appModel = AppModel()
 
     var body: some Scene {

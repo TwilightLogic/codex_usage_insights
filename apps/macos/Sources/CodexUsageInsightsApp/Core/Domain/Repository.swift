@@ -3,12 +3,17 @@ import Foundation
 protocol LogImporting: Sendable {
     func importLogs(
         from directoryURL: URL,
+        previousResult: ImportResult?,
         progress: @escaping @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult
 }
 
 protocol UsageSummaryQuerying: Sendable {
     func currentSummary() async -> UsageOverviewSummary?
+    func trendBuckets(
+        matching query: TrendQuery,
+        calendar: Calendar
+    ) async -> [UsageTrendBucket]
 }
 
 protocol SessionLookupProviding: Sendable {
@@ -35,6 +40,36 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
 
     func currentSummary() async -> UsageOverviewSummary? {
         latestResult?.summary
+    }
+
+    func trendBuckets(
+        matching query: TrendQuery,
+        calendar: Calendar
+    ) async -> [UsageTrendBucket] {
+        let sessions = (latestResult?.sessions ?? []).filter { session in
+            guard let dateInterval = query.dateInterval else {
+                return true
+            }
+            return dateInterval.contains(session.observedAt)
+        }
+
+        var groupedUsage: [Date: TokenUsage] = [:]
+        for session in sessions {
+            let bucketStart = bucketStartDate(
+                for: session.observedAt,
+                granularity: query.granularity,
+                calendar: calendar
+            )
+            groupedUsage[bucketStart, default: .zero] = groupedUsage[bucketStart, default: .zero]
+                .adding(session.usage)
+        }
+
+        return groupedUsage.keys.sorted().map { startDate in
+            UsageTrendBucket(
+                startDate: startDate,
+                usage: groupedUsage[startDate] ?? .zero
+            )
+        }
     }
 
     func allSessions() async -> [UsageSession] {
@@ -105,5 +140,22 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
 
     func availablePricingProfiles() async -> [PricingProfile] {
         []
+    }
+
+    private func bucketStartDate(
+        for date: Date,
+        granularity: TrendGranularity,
+        calendar: Calendar
+    ) -> Date {
+        switch granularity {
+        case .day:
+            return calendar.startOfDay(for: date)
+        case .week:
+            return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        case .month:
+            return calendar.dateInterval(of: .month, for: date)?.start
+                ?? calendar.startOfDay(for: date)
+        }
     }
 }

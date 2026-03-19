@@ -1,9 +1,15 @@
 import Foundation
 
 struct LogImportService: LogImporting {
+    private let didParseFile: (@Sendable (URL) -> Void)?
+
+    init(didParseFile: (@Sendable (URL) -> Void)? = nil) {
+        self.didParseFile = didParseFile
+    }
 
     func importLogs(
         from directoryURL: URL,
+        previousResult: ImportResult?,
         progress: @escaping @Sendable (ImportProgress) -> Void
     ) async throws -> ImportResult {
         guard directoryExists(at: directoryURL) else {
@@ -24,15 +30,49 @@ struct LogImportService: LogImporting {
         var sessions: [UsageSession] = []
         var warnings: [ImportWarning] = []
         var totalUsage = TokenUsage.zero
+        let previousImportedFilesByPath = Dictionary(
+            uniqueKeysWithValues: (previousResult?.importedFiles ?? []).map { ($0.path, $0) }
+        )
+        let previousSessionsByPath = Dictionary(
+            uniqueKeysWithValues: (previousResult?.sessions ?? []).map { ($0.sourcePath, $0) }
+        )
+        let previousWarningsByPath = Dictionary(
+            grouping: previousResult?.warnings ?? [],
+            by: \.path
+        )
 
         for (index, fileURL) in logFiles.enumerated() {
-            let parseResult = try await parseSessionFile(at: fileURL)
-            importedFiles.append(parseResult.importedFile)
-            warnings.append(contentsOf: parseResult.warnings)
+            let resourceValues = try? fileURL.resourceValues(
+                forKeys: [.fileSizeKey, .contentModificationDateKey]
+            )
 
-            if let session = parseResult.session {
-                sessions.append(session)
-                totalUsage = totalUsage.adding(session.usage)
+            if let reusedResult = reusedParsedSessionFile(
+                for: fileURL,
+                resourceValues: resourceValues,
+                previousImportedFilesByPath: previousImportedFilesByPath,
+                previousSessionsByPath: previousSessionsByPath,
+                previousWarningsByPath: previousWarningsByPath
+            ) {
+                importedFiles.append(reusedResult.importedFile)
+                warnings.append(contentsOf: reusedResult.warnings)
+
+                if let session = reusedResult.session {
+                    sessions.append(session)
+                    totalUsage = totalUsage.adding(session.usage)
+                }
+            } else {
+                didParseFile?(fileURL)
+                let parseResult = try await parseSessionFile(
+                    at: fileURL,
+                    resourceValues: resourceValues
+                )
+                importedFiles.append(parseResult.importedFile)
+                warnings.append(contentsOf: parseResult.warnings)
+
+                if let session = parseResult.session {
+                    sessions.append(session)
+                    totalUsage = totalUsage.adding(session.usage)
+                }
             }
 
             progress(
@@ -66,6 +106,28 @@ struct LogImportService: LogImporting {
         )
     }
 
+    private func reusedParsedSessionFile(
+        for fileURL: URL,
+        resourceValues: URLResourceValues?,
+        previousImportedFilesByPath: [String: ImportedFile],
+        previousSessionsByPath: [String: UsageSession],
+        previousWarningsByPath: [String: [ImportWarning]]
+    ) -> ParsedSessionFile? {
+        guard
+            let previousImportedFile = previousImportedFilesByPath[fileURL.path],
+            previousImportedFile.fileSize == resourceValues?.fileSize.map(Int64.init),
+            previousImportedFile.modifiedAt == resourceValues?.contentModificationDate
+        else {
+            return nil
+        }
+
+        return ParsedSessionFile(
+            importedFile: previousImportedFile,
+            session: previousSessionsByPath[fileURL.path],
+            warnings: previousWarningsByPath[fileURL.path] ?? []
+        )
+    }
+
     private func directoryExists(at directoryURL: URL) -> Bool {
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
@@ -90,9 +152,11 @@ struct LogImportService: LogImporting {
         return logFiles.sorted(by: { $0.path < $1.path })
     }
 
-    private func parseSessionFile(at fileURL: URL) async throws -> ParsedSessionFile {
+    private func parseSessionFile(
+        at fileURL: URL,
+        resourceValues: URLResourceValues?
+    ) async throws -> ParsedSessionFile {
         let decoder = JSONDecoder()
-        let resourceValues = try? fileURL.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         let baseImportedFile = ImportedFile(
             id: fileURL.path,
             path: fileURL.path,

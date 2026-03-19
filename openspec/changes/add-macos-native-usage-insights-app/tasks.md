@@ -23,21 +23,21 @@
 
 - [x] 4.1 Build first-launch onboarding that lets the user choose a Codex session root with `NSOpenPanel`
 - [x] 4.2 Implement initial import progress reporting with scanned-file, imported-session, and warning counts
-- [ ] 4.3 Implement refresh with file fingerprint deduplication so unchanged logs are not re-imported
-- [ ] 4.4 Add stale-on-foreground auto-refresh and a manual toolbar refresh action
+- [x] 4.3 Implement refresh with file fingerprint deduplication so unchanged logs are not re-imported
+- [x] 4.4 Add stale-on-foreground auto-refresh and a manual toolbar refresh action
 - [ ] 4.5 Add recoverable error handling for missing paths, permission failures, and local store reset
 
 ## 5. Build the analytics query layer
 
 - [x] 5.1 Implement summary queries for total tokens, uncached input, cached input, output, estimated cost status, and counted sessions
-- [ ] 5.2 Implement day, week, and month bucket queries for trend charts from the active global filter state
+- [x] 5.2 Implement day, week, and month bucket queries for trend charts from the active global filter state
 - [x] 5.3 Implement searchable and sortable session list queries plus session-detail payload assembly
 - [ ] 5.4 Implement model aggregate queries that group attributed segments and preserve an `Unknown Model` bucket
 
 ## 6. Build the dashboard and session explorer
 
 - [ ] 6.1 Implement the global filter bar with time range, custom range, workspace filter, model filter, and warnings-only toggle
-- [ ] 6.2 Build the dashboard KPI strip, primary trend chart, warning banner, and top-sessions table from real query data
+- [x] 6.2 Build the dashboard KPI strip, primary trend chart, warning banner, and top-sessions table from real query data
 - [x] 6.3 Build the `Sessions` view with search, sortable columns, selection state, and a detail inspector
 - [ ] 6.4 Persist the user’s last selected range and primary filters across launches
 
