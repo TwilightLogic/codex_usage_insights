@@ -41,6 +41,23 @@ struct InMemoryAnalyticsRepositoryTests {
             ),
             importedFiles: [],
             sessions: [session],
+            segments: [
+                UsageSegment(
+                    id: "segment-1",
+                    sessionID: session.id,
+                    sourcePath: session.sourcePath,
+                    sequence: 0,
+                    timestamp: session.observedAt.addingTimeInterval(-60),
+                    model: "gpt-5.4",
+                    usage: TokenUsage(
+                        inputTokens: 80,
+                        cachedInputTokens: 20,
+                        outputTokens: 20,
+                        reasoningOutputTokens: 5,
+                        totalTokens: 100
+                    )
+                )
+            ],
             warnings: [matchingWarning, unrelatedWarning]
         )
 
@@ -52,6 +69,8 @@ struct InMemoryAnalyticsRepositoryTests {
         #expect(detail?.session.id == session.id)
         #expect(detail?.warnings.count == 1)
         #expect(detail?.warnings.first?.id == matchingWarning.id)
+        #expect(detail?.segments.count == 1)
+        #expect(detail?.segments.first?.model == "gpt-5.4")
     }
 
     @Test
@@ -86,6 +105,7 @@ struct InMemoryAnalyticsRepositoryTests {
                 ),
                 importedFiles: [],
                 sessions: [alpha, beta],
+                segments: [],
                 warnings: []
             )
         )
@@ -171,6 +191,35 @@ struct InMemoryAnalyticsRepositoryTests {
                 ),
                 importedFiles: [],
                 sessions: [alpha, beta, gamma],
+                segments: [
+                    UsageSegment(
+                        id: "alpha-segment",
+                        sessionID: alpha.id,
+                        sourcePath: alpha.sourcePath,
+                        sequence: 0,
+                        timestamp: alpha.observedAt,
+                        model: "gpt-5.4",
+                        usage: alpha.usage
+                    ),
+                    UsageSegment(
+                        id: "beta-segment",
+                        sessionID: beta.id,
+                        sourcePath: beta.sourcePath,
+                        sequence: 0,
+                        timestamp: beta.observedAt,
+                        model: "gpt-5-mini",
+                        usage: beta.usage
+                    ),
+                    UsageSegment(
+                        id: "gamma-segment",
+                        sessionID: gamma.id,
+                        sourcePath: gamma.sourcePath,
+                        sequence: 0,
+                        timestamp: gamma.observedAt,
+                        model: nil,
+                        usage: gamma.usage
+                    )
+                ],
                 warnings: []
             )
         )
@@ -211,6 +260,88 @@ struct InMemoryAnalyticsRepositoryTests {
         #expect(daily.map(\.usage.totalTokens) == [120, 200, 300])
         #expect(weekly.map(\.usage.totalTokens) == [320, 300])
         #expect(filteredMonthly.map(\.usage.totalTokens) == [320])
+    }
+
+    @Test
+    func modelAggregatesGroupAttributedAndUnknownSegments() async throws {
+        let timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+
+        let alpha = makeSession(
+            id: "session-alpha",
+            sourcePath: "/tmp/session-alpha.jsonl",
+            workspacePath: "/tmp/alpha",
+            observedAt: makeDate(
+                year: 2026,
+                month: 3,
+                day: 17,
+                hour: 10,
+                minute: 0,
+                calendar: calendar
+            ),
+            totalTokens: 120
+        )
+        let beta = makeSession(
+            id: "session-beta",
+            sourcePath: "/tmp/session-beta.jsonl",
+            workspacePath: "/tmp/beta",
+            observedAt: makeDate(
+                year: 2026,
+                month: 3,
+                day: 18,
+                hour: 11,
+                minute: 0,
+                calendar: calendar
+            ),
+            totalTokens: 200
+        )
+
+        let repository = InMemoryAnalyticsRepository()
+        await repository.replace(
+            with: ImportResult(
+                summary: UsageOverviewSummary(
+                    inputPath: "/tmp",
+                    scannedFiles: 2,
+                    countedSessions: 2,
+                    excludedFiles: 0,
+                    warningCount: 0,
+                    usage: alpha.usage.adding(beta.usage),
+                    estimatedCostStatus: .unavailable,
+                    importedAt: Date(timeIntervalSince1970: 1_710_000_300)
+                ),
+                importedFiles: [],
+                sessions: [alpha, beta],
+                segments: [
+                    UsageSegment(
+                        id: "alpha-known",
+                        sessionID: alpha.id,
+                        sourcePath: alpha.sourcePath,
+                        sequence: 0,
+                        timestamp: alpha.observedAt,
+                        model: "gpt-5.4",
+                        usage: alpha.usage
+                    ),
+                    UsageSegment(
+                        id: "beta-unknown",
+                        sessionID: beta.id,
+                        sourcePath: beta.sourcePath,
+                        sequence: 0,
+                        timestamp: beta.observedAt,
+                        model: nil,
+                        usage: beta.usage
+                    )
+                ],
+                warnings: []
+            )
+        )
+
+        let aggregates = await repository.modelAggregates(matching: .default)
+
+        #expect(aggregates.count == 2)
+        #expect(aggregates.map(\.displayName) == [ModelAggregate.unknownModelDisplayName, "gpt-5.4"])
+        #expect(aggregates.map(\.usage.totalTokens) == [200, 120])
+        #expect(aggregates.first?.isUnknownModel == true)
     }
 
     private func makeSession(

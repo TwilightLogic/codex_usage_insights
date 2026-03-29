@@ -14,6 +14,7 @@ protocol UsageSummaryQuerying: Sendable {
         matching query: TrendQuery,
         calendar: Calendar
     ) async -> [UsageTrendBucket]
+    func modelAggregates(matching query: ModelAggregateQuery) async -> [ModelAggregate]
 }
 
 protocol SessionLookupProviding: Sendable {
@@ -46,22 +47,36 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         matching query: TrendQuery,
         calendar: Calendar
     ) async -> [UsageTrendBucket] {
-        let sessions = (latestResult?.sessions ?? []).filter { session in
-            guard let dateInterval = query.dateInterval else {
-                return true
-            }
-            return dateInterval.contains(session.observedAt)
-        }
-
         var groupedUsage: [Date: TokenUsage] = [:]
-        for session in sessions {
-            let bucketStart = bucketStartDate(
-                for: session.observedAt,
-                granularity: query.granularity,
-                calendar: calendar
-            )
-            groupedUsage[bucketStart, default: .zero] = groupedUsage[bucketStart, default: .zero]
-                .adding(session.usage)
+        let segments = latestResult?.segments ?? []
+
+        if segments.isEmpty {
+            let sessions = (latestResult?.sessions ?? []).filter { session in
+                guard let dateInterval = query.dateInterval else {
+                    return true
+                }
+                return dateInterval.contains(session.observedAt)
+            }
+
+            for session in sessions {
+                let bucketStart = bucketStartDate(
+                    for: session.observedAt,
+                    granularity: query.granularity,
+                    calendar: calendar
+                )
+                groupedUsage[bucketStart, default: .zero] = groupedUsage[bucketStart, default: .zero]
+                    .adding(session.usage)
+            }
+        } else {
+            for segment in segments where query.dateInterval?.contains(segment.timestamp) ?? true {
+                let bucketStart = bucketStartDate(
+                    for: segment.timestamp,
+                    granularity: query.granularity,
+                    calendar: calendar
+                )
+                groupedUsage[bucketStart, default: .zero] = groupedUsage[bucketStart, default: .zero]
+                    .adding(segment.usage)
+            }
         }
 
         return groupedUsage.keys.sorted().map { startDate in
@@ -131,11 +146,45 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
             return nil
         }
 
+        let segments = latestResult.segments
+            .filter { $0.sessionID == session.id }
+            .sorted { lhs, rhs in
+                if lhs.timestamp == rhs.timestamp {
+                    return lhs.sequence < rhs.sequence
+                }
+                return lhs.timestamp < rhs.timestamp
+            }
         let warnings = latestResult.warnings.filter { warning in
             warning.path == session.sourcePath
         }
 
-        return SessionDetailPayload(session: session, warnings: warnings)
+        return SessionDetailPayload(session: session, segments: segments, warnings: warnings)
+    }
+
+    func modelAggregates(matching query: ModelAggregateQuery) async -> [ModelAggregate] {
+        let segments = (latestResult?.segments ?? []).filter { segment in
+            guard let dateInterval = query.dateInterval else {
+                return true
+            }
+            return dateInterval.contains(segment.timestamp)
+        }
+
+        let groupedSegments = Dictionary(grouping: segments, by: \.model)
+        return groupedSegments.map { model, groupedSegments in
+            ModelAggregate(
+                model: model,
+                usage: groupedSegments.reduce(.zero) { partialResult, segment in
+                    partialResult.adding(segment.usage)
+                },
+                sessionCount: Set(groupedSegments.map(\.sessionID)).count
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.usage.totalTokens == rhs.usage.totalTokens {
+                return lhs.displayName.localizedStandardCompare(rhs.displayName) == .orderedAscending
+            }
+            return lhs.usage.totalTokens > rhs.usage.totalTokens
+        }
     }
 
     func availablePricingProfiles() async -> [PricingProfile] {

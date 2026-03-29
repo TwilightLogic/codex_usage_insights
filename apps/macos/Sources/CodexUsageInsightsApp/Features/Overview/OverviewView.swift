@@ -242,7 +242,7 @@ struct OverviewView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(summary.warningCount) import warning\(summary.warningCount == 1 ? "" : "s") need review")
                             .font(.headline)
-                        Text("Some logs were skipped, partial, or malformed. The dashboard totals remain measured, but you should review the warning list before trusting edge cases.")
+                        Text("Some logs were skipped, partial, malformed, or include metrics the MVP treats as unavailable. The dashboard totals remain measured, but you should review the warning list before trusting edge cases.")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()

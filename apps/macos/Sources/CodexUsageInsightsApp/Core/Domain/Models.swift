@@ -71,6 +71,26 @@ struct TokenUsage: Codable, Hashable, Sendable {
         )
     }
 
+    func subtractingClamped(_ other: TokenUsage) -> TokenUsage {
+        TokenUsage(
+            inputTokens: max(inputTokens - other.inputTokens, 0),
+            cachedInputTokens: max(cachedInputTokens - other.cachedInputTokens, 0),
+            outputTokens: max(outputTokens - other.outputTokens, 0),
+            reasoningOutputTokens: max(reasoningOutputTokens - other.reasoningOutputTokens, 0),
+            totalTokens: max(totalTokens - other.totalTokens, 0)
+        )
+    }
+
+    func componentwiseMax(with other: TokenUsage) -> TokenUsage {
+        TokenUsage(
+            inputTokens: max(inputTokens, other.inputTokens),
+            cachedInputTokens: max(cachedInputTokens, other.cachedInputTokens),
+            outputTokens: max(outputTokens, other.outputTokens),
+            reasoningOutputTokens: max(reasoningOutputTokens, other.reasoningOutputTokens),
+            totalTokens: max(totalTokens, other.totalTokens)
+        )
+    }
+
     enum CodingKeys: String, CodingKey {
         case inputTokens = "input_tokens"
         case cachedInputTokens = "cached_input_tokens"
@@ -102,6 +122,7 @@ struct UsageSession: Identifiable, Hashable, Sendable {
 
 struct SessionDetailPayload: Hashable, Sendable {
     let session: UsageSession
+    let segments: [UsageSegment]
     let warnings: [ImportWarning]
 }
 
@@ -167,10 +188,41 @@ struct UsageTrendBucket: Identifiable, Hashable, Sendable {
 struct UsageSegment: Identifiable, Hashable, Sendable {
     let id: String
     let sessionID: String
+    let sourcePath: String
     let sequence: Int
     let timestamp: Date
     let model: String?
     let usage: TokenUsage
+
+    var modelDisplayName: String {
+        model ?? ModelAggregate.unknownModelDisplayName
+    }
+}
+
+struct ModelAggregateQuery: Hashable, Sendable {
+    let dateInterval: DateInterval?
+
+    static let `default` = ModelAggregateQuery(dateInterval: nil)
+}
+
+struct ModelAggregate: Identifiable, Hashable, Sendable {
+    static let unknownModelDisplayName = "Unknown Model"
+
+    let model: String?
+    let usage: TokenUsage
+    let sessionCount: Int
+
+    var id: String {
+        model ?? "unknown-model"
+    }
+
+    var displayName: String {
+        model ?? Self.unknownModelDisplayName
+    }
+
+    var isUnknownModel: Bool {
+        model == nil
+    }
 }
 
 enum ImportedFileStatus: String, Codable, Hashable, Sendable {
@@ -236,5 +288,6 @@ struct ImportResult: Sendable {
     let summary: UsageOverviewSummary
     let importedFiles: [ImportedFile]
     let sessions: [UsageSession]
+    let segments: [UsageSegment]
     let warnings: [ImportWarning]
 }

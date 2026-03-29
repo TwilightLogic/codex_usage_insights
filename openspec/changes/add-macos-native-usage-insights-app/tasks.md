@@ -13,11 +13,11 @@
 
 ## 3. Port parsing and import semantics from local logs
 
-- [ ] 3.1 Implement a streaming JSONL parser for `session_meta`, `turn_context`, and `token_count` events
+- [x] 3.1 Implement a streaming JSONL parser for `session_meta`, `turn_context`, and `token_count` events
 - [x] 3.2 Derive stable session totals from cumulative usage snapshots without double-counting repeated totals
-- [ ] 3.3 Derive timestamp-ordered usage segments from cumulative snapshots and attribute them to the latest known model context
-- [ ] 3.4 Persist import warnings for skipped files, malformed payloads, missing usage snapshots, and unsupported metrics
-- [ ] 3.5 Add parser and importer tests using the existing repository fixtures plus new cases for model attribution and unknown-model segments
+- [x] 3.3 Derive timestamp-ordered usage segments from cumulative snapshots and attribute them to the latest known model context
+- [x] 3.4 Persist import warnings for skipped files, malformed payloads, missing usage snapshots, and unsupported metrics
+- [x] 3.5 Add parser and importer tests using the existing repository fixtures plus new cases for model attribution and unknown-model segments
 
 ## 4. Implement import, onboarding, and refresh flows
 
@@ -32,7 +32,7 @@
 - [x] 5.1 Implement summary queries for total tokens, uncached input, cached input, output, estimated cost status, and counted sessions
 - [x] 5.2 Implement day, week, and month bucket queries for trend charts from the active global filter state
 - [x] 5.3 Implement searchable and sortable session list queries plus session-detail payload assembly
-- [ ] 5.4 Implement model aggregate queries that group attributed segments and preserve an `Unknown Model` bucket
+- [x] 5.4 Implement model aggregate queries that group attributed segments and preserve an `Unknown Model` bucket
 
 ## 6. Build the dashboard and session explorer
 
