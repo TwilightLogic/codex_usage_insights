@@ -10,6 +10,8 @@ protocol LogImporting: Sendable {
 
 protocol UsageSummaryQuerying: Sendable {
     func currentSummary() async -> UsageOverviewSummary?
+    func scopedUsageSummary(matching scope: AnalysisScope) async -> ScopedUsageSummary
+    func warnings(matching scope: AnalysisScope, limit: Int?) async -> [ImportWarning]
     func trendBuckets(
         matching query: TrendQuery,
         calendar: Calendar
@@ -79,22 +81,32 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         latestResult?.summary
     }
 
+    func scopedUsageSummary(matching scope: AnalysisScope) async -> ScopedUsageSummary {
+        let sessions = filteredSessions(matching: scope)
+        return ScopedUsageSummary(
+            countedSessions: sessions.count,
+            warningCount: filteredWarnings(matching: scope).count,
+            usage: aggregatedUsage(matching: scope)
+        )
+    }
+
+    func warnings(matching scope: AnalysisScope, limit: Int?) async -> [ImportWarning] {
+        let filtered = filteredWarnings(matching: scope)
+        guard let limit else {
+            return filtered
+        }
+        return Array(filtered.prefix(limit))
+    }
+
     func trendBuckets(
         matching query: TrendQuery,
         calendar: Calendar
     ) async -> [UsageTrendBucket] {
         var groupedUsage: [Date: TokenUsage] = [:]
-        let segments = latestResult?.segments ?? []
+        let segments = filteredSegments(matching: query.scope)
 
         if segments.isEmpty {
-            let sessions = (latestResult?.sessions ?? []).filter { session in
-                guard let dateInterval = query.dateInterval else {
-                    return true
-                }
-                return dateInterval.contains(session.observedAt)
-            }
-
-            for session in sessions {
+            for session in filteredSessions(matching: query.scope) {
                 let bucketStart = bucketStartDate(
                     for: session.observedAt,
                     granularity: query.granularity,
@@ -104,7 +116,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
                     .adding(session.usage)
             }
         } else {
-            for segment in segments where query.dateInterval?.contains(segment.timestamp) ?? true {
+            for segment in segments {
                 let bucketStart = bucketStartDate(
                     for: segment.timestamp,
                     granularity: query.granularity,
@@ -128,7 +140,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
     }
 
     func sessions(matching query: SessionListQuery) async -> [UsageSession] {
-        let sessions = latestResult?.sessions ?? []
+        let sessions = filteredSessions(matching: query.scope)
         let filteredSessions: [UsageSession]
 
         if query.searchText.isEmpty {
@@ -198,7 +210,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
     }
 
     func modelAggregates(matching query: ModelAggregateQuery) async -> [ModelAggregate] {
-        let segments = filteredSegments(in: query.dateInterval)
+        let segments = filteredSegments(matching: query.scope)
 
         let groupedSegments = Dictionary(grouping: segments, by: \.model)
         return groupedSegments.map { model, groupedSegments in
@@ -222,7 +234,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         matching query: ModelTrendQuery,
         calendar: Calendar
     ) async -> [UsageTrendBucket] {
-        let segments = filteredSegments(in: query.dateInterval)
+        let segments = filteredSegments(matching: query.scope)
             .filter { $0.modelIdentifier == query.modelID }
 
         var groupedUsage: [Date: TokenUsage] = [:]
@@ -253,7 +265,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
 
         let sessionsByID = Dictionary(uniqueKeysWithValues: latestResult.sessions.map { ($0.id, $0) })
         let groupedSegments = Dictionary(
-            grouping: filteredSegments(in: query.dateInterval).filter { $0.modelIdentifier == query.modelID },
+            grouping: filteredSegments(matching: query.scope).filter { $0.modelIdentifier == query.modelID },
             by: \.sessionID
         )
 
@@ -295,7 +307,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         }
 
         return makeCostEstimate(
-            usage: aggregatedUsage(in: query.dateInterval),
+            usage: aggregatedUsage(matching: query.scope),
             profile: profile
         )
     }
@@ -311,7 +323,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         let usageBuckets = await trendBuckets(
             matching: TrendQuery(
                 granularity: query.granularity,
-                dateInterval: query.dateInterval
+                scope: query.scope
             ),
             calendar: calendar
         )
@@ -345,35 +357,132 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         }
     }
 
-    private func filteredSegments(in dateInterval: DateInterval?) -> [UsageSegment] {
-        (latestResult?.segments ?? []).filter { segment in
-            guard let dateInterval else {
+    private func filteredSegments(matching scope: AnalysisScope) -> [UsageSegment] {
+        guard let latestResult else {
+            return []
+        }
+
+        let sessionsByID = Dictionary(uniqueKeysWithValues: latestResult.sessions.map { ($0.id, $0) })
+        let warningSessionIDs = warningSessionIDs(from: latestResult)
+
+        return latestResult.segments.filter { segment in
+            guard scope.dateInterval?.contains(segment.timestamp) ?? true else {
+                return false
+            }
+            guard let session = sessionsByID[segment.sessionID] else {
+                return false
+            }
+            guard sessionMatchesNonDateFilters(
+                session,
+                workspacePath: scope.workspacePath,
+                warningsOnly: scope.warningsOnly,
+                warningSessionIDs: warningSessionIDs
+            ) else {
+                return false
+            }
+            guard let modelID = scope.modelID else {
                 return true
             }
-            return dateInterval.contains(segment.timestamp)
+            return segment.modelIdentifier == modelID
         }
     }
 
-    private func filteredSessions(in dateInterval: DateInterval?) -> [UsageSession] {
-        (latestResult?.sessions ?? []).filter { session in
-            guard let dateInterval else {
-                return true
-            }
-            return dateInterval.contains(session.observedAt)
+    private func filteredSessions(matching scope: AnalysisScope) -> [UsageSession] {
+        guard let latestResult else {
+            return []
         }
+
+        let warningSessionIDs = warningSessionIDs(from: latestResult)
+        let baseSessions = latestResult.sessions.filter { session in
+            guard scope.dateInterval?.contains(session.observedAt) ?? true else {
+                return false
+            }
+            return sessionMatchesNonDateFilters(
+                session,
+                workspacePath: scope.workspacePath,
+                warningsOnly: scope.warningsOnly,
+                warningSessionIDs: warningSessionIDs
+            )
+        }
+
+        guard let modelID = scope.modelID else {
+            return baseSessions
+        }
+
+        let matchingSessionIDs = Set(
+            latestResult.segments.filter { segment in
+                guard segment.modelIdentifier == modelID else {
+                    return false
+                }
+                guard scope.dateInterval?.contains(segment.timestamp) ?? true else {
+                    return false
+                }
+                guard let session = latestResult.sessions.first(where: { $0.id == segment.sessionID }) else {
+                    return false
+                }
+                return sessionMatchesNonDateFilters(
+                    session,
+                    workspacePath: scope.workspacePath,
+                    warningsOnly: scope.warningsOnly,
+                    warningSessionIDs: warningSessionIDs
+                )
+            }
+            .map(\.sessionID)
+        )
+
+        return baseSessions.filter { matchingSessionIDs.contains($0.id) }
     }
 
-    private func aggregatedUsage(in dateInterval: DateInterval?) -> TokenUsage {
-        let segments = filteredSegments(in: dateInterval)
+    private func filteredWarnings(matching scope: AnalysisScope) -> [ImportWarning] {
+        guard let latestResult else {
+            return []
+        }
+
+        let matchingPaths = Set(filteredSessions(matching: scope).map(\.sourcePath))
+        return latestResult.warnings.filter { matchingPaths.contains($0.path) }
+    }
+
+    private func aggregatedUsage(matching scope: AnalysisScope) -> TokenUsage {
+        let segments = filteredSegments(matching: scope)
         if !segments.isEmpty {
             return segments.reduce(.zero) { partialResult, segment in
                 partialResult.adding(segment.usage)
             }
         }
 
-        return filteredSessions(in: dateInterval).reduce(.zero) { partialResult, session in
+        guard scope.modelID == nil else {
+            return .zero
+        }
+
+        return filteredSessions(matching: scope).reduce(.zero) { partialResult, session in
             partialResult.adding(session.usage)
         }
+    }
+
+    private func warningSessionIDs(from result: ImportResult) -> Set<String> {
+        let sessionsByPath = Dictionary(grouping: result.sessions, by: \.sourcePath)
+        return Set(
+            result.warnings.flatMap { warning in
+                sessionsByPath[warning.path]?.map(\.id) ?? []
+            }
+        )
+    }
+
+    private func sessionMatchesNonDateFilters(
+        _ session: UsageSession,
+        workspacePath: String?,
+        warningsOnly: Bool,
+        warningSessionIDs: Set<String>
+    ) -> Bool {
+        if let workspacePath, session.workspacePath != workspacePath {
+            return false
+        }
+
+        if warningsOnly && !warningSessionIDs.contains(session.id) {
+            return false
+        }
+
+        return true
     }
 
     private func pricingProfile(named profileName: String?) -> PricingProfile? {

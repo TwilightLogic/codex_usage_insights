@@ -36,10 +36,10 @@
 
 ## 6. Build the dashboard and session explorer
 
-- [ ] 6.1 Implement the global filter bar with time range, custom range, workspace filter, model filter, and warnings-only toggle
+- [x] 6.1 Implement the global filter bar with time range, custom range, workspace filter, model filter, and warnings-only toggle, and propagate the shared scope across `Dashboard`, `Sessions`, `Models`, and `Cost`
 - [x] 6.2 Build the dashboard KPI strip, primary trend chart, warning banner, and top-sessions table from real query data
 - [x] 6.3 Build the `Sessions` view with search, sortable columns, selection state, and a detail inspector
-- [ ] 6.4 Persist the user’s last selected range and primary filters across launches
+- [x] 6.4 Persist the user’s last selected range and primary filters across launches, including fallback when restored workspace or model filters are no longer valid
 
 ## 7. Build models and cost analysis
 

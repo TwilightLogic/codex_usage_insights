@@ -6,16 +6,23 @@ import Observation
 @Observable
 final class AppModel {
     private let foregroundRefreshStalenessInterval: TimeInterval = 60
+    private let recentWarningLimit = 5
 
     var selectedDestination: SidebarDestination? = .dashboard
     var selectedDirectoryURL: URL?
     var importProgress: ImportProgress?
+    var primaryFilters: AnalysisFilterState
     var selectedTrendGranularity: TrendGranularity = .day
     var summary: UsageOverviewSummary?
+    var scopedSummary: ScopedUsageSummary?
     var trendBuckets: [UsageTrendBucket] = []
     var topSessions: [UsageSession] = []
     var importedSessions: [UsageSession] = []
+    var availableWorkspacePaths: [String] = []
     var sessionRows: [UsageSession] = []
+    var sessionSearchText = ""
+    var sessionSort: SessionListSort = .observedAtDescending
+    var availableModelFilters: [ModelAggregate] = []
     var modelRows: [ModelAggregate] = []
     var selectedModelTrendGranularity: TrendGranularity = .day
     var modelTrendBuckets: [UsageTrendBucket] = []
@@ -37,6 +44,9 @@ final class AppModel {
     private let repository: InMemoryAnalyticsRepository
 
     @ObservationIgnored
+    private let primaryFilterStore: PrimaryFilterStore
+
+    @ObservationIgnored
     private let launchConfiguration: LaunchConfiguration
 
     @ObservationIgnored
@@ -49,12 +59,17 @@ final class AppModel {
         directoryPicker: DirectoryPicking = AppKitDirectoryPicker(),
         importService: LogImporting = LogImportService(),
         repository: InMemoryAnalyticsRepository = InMemoryAnalyticsRepository(),
+        primaryFilterStore: PrimaryFilterStore = PrimaryFilterStore(),
         launchConfiguration: LaunchConfiguration = .fromEnvironment()
     ) {
+        let restoredPrimaryFilters = primaryFilterStore.load()
+
         self.directoryPicker = directoryPicker
         self.importService = importService
         self.repository = repository
+        self.primaryFilterStore = primaryFilterStore
         self.launchConfiguration = launchConfiguration
+        self.primaryFilters = restoredPrimaryFilters
 
         if let autoImportPath = launchConfiguration.autoImportPath {
             selectedDirectoryURL = URL(fileURLWithPath: autoImportPath, isDirectory: true)
@@ -128,29 +143,9 @@ final class AppModel {
 
                 latestImportResult = result
                 summary = await repository.currentSummary()
-                trendBuckets = await repository.trendBuckets(
-                    matching: TrendQuery(
-                        granularity: selectedTrendGranularity,
-                        dateInterval: nil
-                    ),
-                    calendar: .autoupdatingCurrent
-                )
-                topSessions = Array(
-                    await repository.sessions(
-                        matching: SessionListQuery(
-                            searchText: "",
-                            sort: .totalTokensDescending
-                        )
-                    ).prefix(5)
-                )
-                importedSessions = await repository.allSessions()
-                sessionRows = await repository.sessions(matching: .default)
-                modelRows = await repository.modelAggregates(matching: .default)
+                await refreshAllAnalysisState(using: repository)
                 modelTrendBuckets = []
                 modelContributionRows = []
-                availablePricingProfiles = await repository.availablePricingProfiles()
-                await refreshCostState(using: repository)
-                recentWarnings = Array(result.warnings.prefix(5))
                 importProgress = nil
                 emitAutomationOutputIfNeeded(for: result.summary)
             } catch {
@@ -186,8 +181,14 @@ final class AppModel {
         searchText: String,
         sort: SessionListSort
     ) {
+        sessionSearchText = searchText
+        sessionSort = sort
         let repository = self.repository
-        let query = SessionListQuery(searchText: searchText, sort: sort)
+        let query = SessionListQuery(
+            searchText: searchText,
+            sort: sort,
+            scope: currentScope()
+        )
 
         Task {
             sessionRows = await repository.sessions(matching: query)
@@ -197,12 +198,14 @@ final class AppModel {
     func refreshDashboardData() {
         let repository = self.repository
         let selectedTrendGranularity = self.selectedTrendGranularity
+        let scope = currentScope()
 
         Task {
+            scopedSummary = await repository.scopedUsageSummary(matching: scope)
             trendBuckets = await repository.trendBuckets(
                 matching: TrendQuery(
                     granularity: selectedTrendGranularity,
-                    dateInterval: nil
+                    scope: scope
                 ),
                 calendar: .autoupdatingCurrent
             )
@@ -210,19 +213,24 @@ final class AppModel {
                 await repository.sessions(
                     matching: SessionListQuery(
                         searchText: "",
-                        sort: .totalTokensDescending
+                        sort: .totalTokensDescending,
+                        scope: scope
                     )
                 ).prefix(5)
             )
-            await refreshCostState(using: repository)
+            recentWarnings = await repository.warnings(matching: scope, limit: recentWarningLimit)
+            await refreshCostState(using: repository, scope: scope)
         }
     }
 
     func refreshModelsData() {
         let repository = self.repository
+        let scope = currentScope()
 
         Task {
-            modelRows = await repository.modelAggregates(matching: .default)
+            modelRows = await repository.modelAggregates(
+                matching: ModelAggregateQuery(scope: scope)
+            )
         }
     }
 
@@ -235,20 +243,21 @@ final class AppModel {
 
         let repository = self.repository
         let selectedModelTrendGranularity = self.selectedModelTrendGranularity
+        let scope = currentScope()
 
         Task {
             modelTrendBuckets = await repository.modelTrendBuckets(
                 matching: ModelTrendQuery(
                     modelID: modelID,
                     granularity: selectedModelTrendGranularity,
-                    dateInterval: nil
+                    scope: scope
                 ),
                 calendar: .autoupdatingCurrent
             )
             modelContributionRows = await repository.modelSessionContributions(
                 matching: ModelSessionContributionQuery(
                     modelID: modelID,
-                    dateInterval: nil,
+                    scope: scope,
                     limit: 8
                 )
             )
@@ -260,21 +269,58 @@ final class AppModel {
 
         Task {
             availablePricingProfiles = await repository.availablePricingProfiles()
-            await refreshCostState(using: repository)
+            await refreshCostState(using: repository, scope: currentScope())
         }
     }
 
     func refreshCostData() {
         let repository = self.repository
+        let scope = currentScope()
 
         Task {
-            await refreshCostState(using: repository)
+            await refreshCostState(using: repository, scope: scope)
         }
     }
 
     func selectPricingProfile(named profileName: String?) {
         selectedPricingProfileName = profileName
         refreshCostData()
+    }
+
+    func selectRangePreset(_ preset: AnalysisRangePreset) {
+        primaryFilters.rangePreset = preset
+        persistAndRefreshPrimaryFilters()
+    }
+
+    func updateCustomStartDate(_ date: Date) {
+        primaryFilters.customStartDate = date
+        if primaryFilters.rangePreset != .custom {
+            primaryFilters.rangePreset = .custom
+        }
+        persistAndRefreshPrimaryFilters()
+    }
+
+    func updateCustomEndDate(_ date: Date) {
+        primaryFilters.customEndDate = date
+        if primaryFilters.rangePreset != .custom {
+            primaryFilters.rangePreset = .custom
+        }
+        persistAndRefreshPrimaryFilters()
+    }
+
+    func selectWorkspaceFilter(path: String?) {
+        primaryFilters.workspacePath = path
+        persistAndRefreshPrimaryFilters()
+    }
+
+    func selectModelFilter(id: String?) {
+        primaryFilters.modelID = id
+        persistAndRefreshPrimaryFilters()
+    }
+
+    func setWarningsOnly(_ warningsOnly: Bool) {
+        primaryFilters.warningsOnly = warningsOnly
+        persistAndRefreshPrimaryFilters()
     }
 
     func openSessionsWorkspace() {
@@ -291,10 +337,13 @@ final class AppModel {
         Task {
             await repository.clear()
             summary = nil
+            scopedSummary = nil
             trendBuckets = []
             topSessions = []
             importedSessions = []
+            availableWorkspacePaths = []
             sessionRows = []
+            availableModelFilters = []
             modelRows = []
             modelTrendBuckets = []
             modelContributionRows = []
@@ -306,11 +355,14 @@ final class AppModel {
         }
     }
 
-    private func refreshCostState(using repository: InMemoryAnalyticsRepository) async {
+    private func refreshCostState(
+        using repository: InMemoryAnalyticsRepository,
+        scope: AnalysisScope
+    ) async {
         costEstimate = await repository.costEstimate(
             matching: CostEstimateQuery(
                 pricingProfileName: selectedPricingProfileName,
-                dateInterval: nil
+                scope: scope
             )
         )
 
@@ -319,13 +371,97 @@ final class AppModel {
                 matching: CostTrendQuery(
                     pricingProfileName: selectedPricingProfileName,
                     granularity: selectedTrendGranularity,
-                    dateInterval: nil
+                    scope: scope
                 ),
                 calendar: .autoupdatingCurrent
             )
         } else {
             costTrendBuckets = []
         }
+    }
+
+    private func refreshAllAnalysisState(using repository: InMemoryAnalyticsRepository) async {
+        importedSessions = await repository.allSessions()
+        availableWorkspacePaths = Array(Set(importedSessions.compactMap(\.workspacePath))).sorted {
+            $0.localizedStandardCompare($1) == .orderedAscending
+        }
+
+        let normalizedForWorkspaces = primaryFilters.normalized(
+            availableWorkspacePaths: Set(availableWorkspacePaths),
+            availableModelIDs: primaryFilters.modelID.map { [$0] } ?? []
+        )
+
+        availableModelFilters = await repository.modelAggregates(
+            matching: ModelAggregateQuery(scope: scopeWithoutModelFilter(from: normalizedForWorkspaces))
+        )
+
+        let fullyNormalizedFilters = normalizedForWorkspaces.normalized(
+            availableWorkspacePaths: Set(availableWorkspacePaths),
+            availableModelIDs: Set(availableModelFilters.map(\.id))
+        )
+
+        if fullyNormalizedFilters != primaryFilters {
+            primaryFilters = fullyNormalizedFilters
+            primaryFilterStore.save(fullyNormalizedFilters)
+        }
+
+        let scope = currentScope()
+        scopedSummary = await repository.scopedUsageSummary(matching: scope)
+        trendBuckets = await repository.trendBuckets(
+            matching: TrendQuery(
+                granularity: selectedTrendGranularity,
+                scope: scope
+            ),
+            calendar: .autoupdatingCurrent
+        )
+        topSessions = Array(
+            await repository.sessions(
+                matching: SessionListQuery(
+                    searchText: "",
+                    sort: .totalTokensDescending,
+                    scope: scope
+                )
+            ).prefix(5)
+        )
+        sessionRows = await repository.sessions(
+            matching: SessionListQuery(
+                searchText: sessionSearchText,
+                sort: sessionSort,
+                scope: scope
+            )
+        )
+        modelRows = await repository.modelAggregates(
+            matching: ModelAggregateQuery(scope: scope)
+        )
+        recentWarnings = await repository.warnings(matching: scope, limit: recentWarningLimit)
+        availablePricingProfiles = await repository.availablePricingProfiles()
+        await refreshCostState(using: repository, scope: scope)
+    }
+
+    private func persistAndRefreshPrimaryFilters() {
+        primaryFilters = primaryFilters.normalized(
+            availableWorkspacePaths: Set(availableWorkspacePaths),
+            availableModelIDs: Set(availableModelFilters.map(\.id))
+        )
+        primaryFilterStore.save(primaryFilters)
+
+        let repository = self.repository
+        Task {
+            await refreshAllAnalysisState(using: repository)
+        }
+    }
+
+    private func currentScope() -> AnalysisScope {
+        primaryFilters.resolvedScope(calendar: .autoupdatingCurrent)
+    }
+
+    private func scopeWithoutModelFilter(from filters: AnalysisFilterState) -> AnalysisScope {
+        AnalysisScope(
+            dateInterval: filters.resolvedScope(calendar: .autoupdatingCurrent).dateInterval,
+            workspacePath: filters.workspacePath,
+            modelID: nil,
+            warningsOnly: filters.warningsOnly
+        )
     }
 
     private func emitAutomationOutputIfNeeded(for summary: UsageOverviewSummary) {

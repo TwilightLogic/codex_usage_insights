@@ -21,23 +21,27 @@ struct OverviewView: View {
                 }
 
                 if let summary = model.summary {
-                    if summary.warningCount > 0 {
-                        warningBanner(summary)
-                    }
-
-                    usageBar(summary)
-
-                    ViewThatFits(in: .horizontal) {
-                        HStack(alignment: .top, spacing: 24) {
-                            trendPanel
-                            topSessionsPanel
-                                .frame(width: 340)
+                    if let scopedSummary = model.scopedSummary, scopedSummary.countedSessions > 0 {
+                        if scopedSummary.warningCount > 0 {
+                            warningBanner(scopedSummary)
                         }
 
-                        VStack(alignment: .leading, spacing: 24) {
-                            trendPanel
-                            topSessionsPanel
+                        usageBar(scopedSummary, importedAt: summary.importedAt)
+
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 24) {
+                                trendPanel
+                                topSessionsPanel
+                                    .frame(width: 340)
+                            }
+
+                            VStack(alignment: .leading, spacing: 24) {
+                                trendPanel
+                                topSessionsPanel
+                            }
                         }
+                    } else {
+                        filteredEmptyState
                     }
 
                     importHealthPanel(summary)
@@ -104,14 +108,17 @@ struct OverviewView: View {
         }
     }
 
-    private func usageBar(_ summary: UsageOverviewSummary) -> some View {
+    private func usageBar(
+        _ summary: ScopedUsageSummary,
+        importedAt: Date
+    ) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     Text("Usage Overview")
                         .font(.title3.weight(.semibold))
                     Spacer()
-                    Text(summary.importedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(importedAt.formatted(date: .abbreviated, time: .shortened))
                         .foregroundStyle(.secondary)
                 }
 
@@ -168,7 +175,7 @@ struct OverviewView: View {
                 }
 
                 if model.topSessions.isEmpty {
-                    Text("Import logs to see the sessions driving the most usage.")
+                    Text("No sessions match the current analysis scope.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(model.topSessions) { session in
@@ -225,7 +232,7 @@ struct OverviewView: View {
         }
     }
 
-    private func warningBanner(_ summary: UsageOverviewSummary) -> some View {
+    private func warningBanner(_ summary: ScopedUsageSummary) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top) {
@@ -254,6 +261,15 @@ struct OverviewView: View {
         } label: {
             Label("Warnings", systemImage: "exclamationmark.triangle.fill")
         }
+    }
+
+    private var filteredEmptyState: some View {
+        ContentUnavailableView(
+            "No usage matches the current filters",
+            systemImage: "line.3.horizontal.decrease.circle",
+            description: Text("Adjust the active time range, workspace, model, or warnings-only filter to bring matching sessions back into scope.")
+        )
+        .frame(maxWidth: .infinity, minHeight: 260)
     }
 
     private var emptyState: some View {

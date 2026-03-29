@@ -31,8 +31,17 @@ struct SessionsView: View {
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.sessionRows.isEmpty, model.importProgress == nil {
-                    ContentUnavailableView.search(text: searchText)
+                    if searchText.isEmpty {
+                        ContentUnavailableView(
+                            "No sessions match the current filters",
+                            systemImage: "line.3.horizontal.decrease.circle",
+                            description: Text("Adjust the active toolbar filters to bring matching sessions back into scope.")
+                        )
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ContentUnavailableView.search(text: searchText)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
                 } else {
                     Table(model.sessionRows, selection: $selectedSessionID, sortOrder: $sortOrder) {
                         TableColumn("Session", value: \.id)
@@ -55,6 +64,8 @@ struct SessionsView: View {
         }
         .navigationTitle("Sessions")
         .onAppear {
+            searchText = model.sessionSearchText
+            sortOrder = sortOrder(for: model.sessionSort)
             refreshSessionRows()
             normalizeSelection()
             loadSelectedSessionDetail()
@@ -104,6 +115,27 @@ struct SessionsView: View {
             searchText: searchText,
             sort: mappedSortOrder
         )
+    }
+
+    private func sortOrder(for sort: SessionListSort) -> [KeyPathComparator<UsageSession>] {
+        switch sort {
+        case .observedAtDescending:
+            return [KeyPathComparator(\UsageSession.observedAt, order: .reverse)]
+        case .observedAtAscending:
+            return [KeyPathComparator(\UsageSession.observedAt, order: .forward)]
+        case .totalTokensDescending:
+            return [KeyPathComparator(\UsageSession.totalTokens, order: .reverse)]
+        case .totalTokensAscending:
+            return [KeyPathComparator(\UsageSession.totalTokens, order: .forward)]
+        case .sessionIDAscending:
+            return [KeyPathComparator(\UsageSession.id, order: .forward)]
+        case .sessionIDDescending:
+            return [KeyPathComparator(\UsageSession.id, order: .reverse)]
+        case .workspaceAscending:
+            return [KeyPathComparator(\UsageSession.workspaceName, order: .forward)]
+        case .workspaceDescending:
+            return [KeyPathComparator(\UsageSession.workspaceName, order: .reverse)]
+        }
     }
 
     private var mappedSortOrder: SessionListSort {

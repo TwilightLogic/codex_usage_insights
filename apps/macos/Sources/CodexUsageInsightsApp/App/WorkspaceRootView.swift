@@ -44,6 +44,10 @@ struct WorkspaceRootView: View {
             }
         }
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                GlobalFilterToolbarView(model: model)
+            }
+
             ToolbarItem(placement: .primaryAction) {
                 Button {
                     model.importLogs()

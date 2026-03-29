@@ -40,6 +40,140 @@ enum SidebarDestination: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum AnalysisRangePreset: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+    case allTime
+    case last7Days
+    case last30Days
+    case last90Days
+    case thisMonth
+    case custom
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .allTime:
+            return "All Time"
+        case .last7Days:
+            return "7D"
+        case .last30Days:
+            return "30D"
+        case .last90Days:
+            return "90D"
+        case .thisMonth:
+            return "This Month"
+        case .custom:
+            return "Custom"
+        }
+    }
+}
+
+struct AnalysisFilterState: Codable, Hashable, Sendable {
+    var rangePreset: AnalysisRangePreset
+    var customStartDate: Date
+    var customEndDate: Date
+    var workspacePath: String?
+    var modelID: String?
+    var warningsOnly: Bool
+
+    static func `default`(now: Date = Date()) -> AnalysisFilterState {
+        AnalysisFilterState(
+            rangePreset: .allTime,
+            customStartDate: now.addingTimeInterval(-6 * 86_400),
+            customEndDate: now,
+            workspacePath: nil,
+            modelID: nil,
+            warningsOnly: false
+        )
+    }
+
+    func resolvedScope(
+        calendar: Calendar = .autoupdatingCurrent,
+        now: Date = Date()
+    ) -> AnalysisScope {
+        AnalysisScope(
+            dateInterval: resolvedDateInterval(calendar: calendar, now: now),
+            workspacePath: workspacePath,
+            modelID: modelID,
+            warningsOnly: warningsOnly
+        )
+    }
+
+    func normalized(
+        availableWorkspacePaths: Set<String>,
+        availableModelIDs: Set<String>
+    ) -> AnalysisFilterState {
+        let normalizedWorkspace = workspacePath.flatMap { availableWorkspacePaths.contains($0) ? $0 : nil }
+        let normalizedModel = modelID.flatMap { availableModelIDs.contains($0) ? $0 : nil }
+        let normalizedStart = min(customStartDate, customEndDate)
+        let normalizedEnd = max(customStartDate, customEndDate)
+
+        return AnalysisFilterState(
+            rangePreset: rangePreset,
+            customStartDate: normalizedStart,
+            customEndDate: normalizedEnd,
+            workspacePath: normalizedWorkspace,
+            modelID: normalizedModel,
+            warningsOnly: warningsOnly
+        )
+    }
+
+    private func resolvedDateInterval(
+        calendar: Calendar,
+        now: Date
+    ) -> DateInterval? {
+        switch rangePreset {
+        case .allTime:
+            return nil
+        case .last7Days:
+            return recentDateInterval(days: 7, calendar: calendar, now: now)
+        case .last30Days:
+            return recentDateInterval(days: 30, calendar: calendar, now: now)
+        case .last90Days:
+            return recentDateInterval(days: 90, calendar: calendar, now: now)
+        case .thisMonth:
+            return calendar.dateInterval(of: .month, for: now)
+        case .custom:
+            let start = calendar.startOfDay(for: min(customStartDate, customEndDate))
+            let endDay = calendar.startOfDay(for: max(customStartDate, customEndDate))
+            let end = calendar.date(byAdding: .day, value: 1, to: endDay) ?? endDay
+            return DateInterval(start: start, end: max(start, end))
+        }
+    }
+
+    private func recentDateInterval(
+        days: Int,
+        calendar: Calendar,
+        now: Date
+    ) -> DateInterval? {
+        let end = now
+        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: calendar.startOfDay(for: now)) else {
+            return nil
+        }
+        return DateInterval(start: start, end: end)
+    }
+}
+
+struct AnalysisScope: Hashable, Sendable {
+    let dateInterval: DateInterval?
+    let workspacePath: String?
+    let modelID: String?
+    let warningsOnly: Bool
+
+    static let all = AnalysisScope(
+        dateInterval: nil,
+        workspacePath: nil,
+        modelID: nil,
+        warningsOnly: false
+    )
+}
+
+struct ScopedUsageSummary: Hashable, Sendable {
+    let countedSessions: Int
+    let warningCount: Int
+    let usage: TokenUsage
+}
+
 struct TokenUsage: Codable, Hashable, Sendable {
     var inputTokens: Int = 0
     var cachedInputTokens: Int = 0
@@ -140,10 +274,12 @@ enum SessionListSort: String, Hashable, Sendable {
 struct SessionListQuery: Hashable, Sendable {
     let searchText: String
     let sort: SessionListSort
+    let scope: AnalysisScope
 
     static let `default` = SessionListQuery(
         searchText: "",
-        sort: .observedAtDescending
+        sort: .observedAtDescending,
+        scope: .all
     )
 }
 
@@ -168,11 +304,11 @@ enum TrendGranularity: String, CaseIterable, Identifiable, Sendable {
 
 struct TrendQuery: Hashable, Sendable {
     let granularity: TrendGranularity
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
 
     static let `default` = TrendQuery(
         granularity: .day,
-        dateInterval: nil
+        scope: .all
     )
 }
 
@@ -204,9 +340,9 @@ struct UsageSegment: Identifiable, Hashable, Sendable {
 }
 
 struct ModelAggregateQuery: Hashable, Sendable {
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
 
-    static let `default` = ModelAggregateQuery(dateInterval: nil)
+    static let `default` = ModelAggregateQuery(scope: .all)
 }
 
 struct ModelAggregate: Identifiable, Hashable, Sendable {
@@ -233,12 +369,12 @@ struct ModelAggregate: Identifiable, Hashable, Sendable {
 struct ModelTrendQuery: Hashable, Sendable {
     let modelID: String
     let granularity: TrendGranularity
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
 }
 
 struct ModelSessionContributionQuery: Hashable, Sendable {
     let modelID: String
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
     let limit: Int?
 }
 
@@ -298,18 +434,18 @@ struct BillableTokenBreakdown: Hashable, Sendable {
 
 struct CostEstimateQuery: Hashable, Sendable {
     let pricingProfileName: String?
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
 
     static let `default` = CostEstimateQuery(
         pricingProfileName: nil,
-        dateInterval: nil
+        scope: .all
     )
 }
 
 struct CostTrendQuery: Hashable, Sendable {
     let pricingProfileName: String
     let granularity: TrendGranularity
-    let dateInterval: DateInterval?
+    let scope: AnalysisScope
 }
 
 struct CostEstimate: Hashable, Sendable {

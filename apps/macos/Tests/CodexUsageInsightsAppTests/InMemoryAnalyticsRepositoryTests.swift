@@ -113,18 +113,113 @@ struct InMemoryAnalyticsRepositoryTests {
         let searchResults = await repository.sessions(
             matching: SessionListQuery(
                 searchText: "beta",
-                sort: .observedAtDescending
+                sort: .observedAtDescending,
+                scope: .all
             )
         )
         let sortedResults = await repository.sessions(
             matching: SessionListQuery(
                 searchText: "",
-                sort: .totalTokensDescending
+                sort: .totalTokensDescending,
+                scope: .all
             )
         )
 
         #expect(searchResults.map(\.id) == [beta.id])
         #expect(sortedResults.map(\.id) == [beta.id, alpha.id])
+    }
+
+    @Test
+    func scopedQueriesRespectWorkspaceModelAndWarningsOnlyFilters() async {
+        let alpha = makeSession(
+            id: "session-alpha",
+            sourcePath: "/tmp/session-alpha.jsonl",
+            workspacePath: "/tmp/alpha",
+            observedAt: Date(timeIntervalSince1970: 1_710_000_100),
+            totalTokens: 120
+        )
+        let beta = makeSession(
+            id: "session-beta",
+            sourcePath: "/tmp/session-beta.jsonl",
+            workspacePath: "/tmp/beta",
+            observedAt: Date(timeIntervalSince1970: 1_710_000_200),
+            totalTokens: 450
+        )
+
+        let alphaWarning = ImportWarning(
+            id: "warning-alpha",
+            code: "malformed_json_tail",
+            message: "Trailing invalid JSON ignored",
+            path: alpha.sourcePath,
+            line: 24
+        )
+
+        let repository = InMemoryAnalyticsRepository()
+        await repository.replace(
+            with: ImportResult(
+                summary: UsageOverviewSummary(
+                    inputPath: "/tmp",
+                    scannedFiles: 2,
+                    countedSessions: 2,
+                    excludedFiles: 0,
+                    warningCount: 1,
+                    usage: alpha.usage.adding(beta.usage),
+                    estimatedCostStatus: .unavailable,
+                    importedAt: Date(timeIntervalSince1970: 1_710_000_300)
+                ),
+                importedFiles: [],
+                sessions: [alpha, beta],
+                segments: [
+                    UsageSegment(
+                        id: "alpha-segment",
+                        sessionID: alpha.id,
+                        sourcePath: alpha.sourcePath,
+                        sequence: 0,
+                        timestamp: alpha.observedAt,
+                        model: "gpt-5.4",
+                        usage: alpha.usage
+                    ),
+                    UsageSegment(
+                        id: "beta-segment",
+                        sessionID: beta.id,
+                        sourcePath: beta.sourcePath,
+                        sequence: 0,
+                        timestamp: beta.observedAt,
+                        model: "gpt-5-mini",
+                        usage: beta.usage
+                    )
+                ],
+                warnings: [alphaWarning]
+            )
+        )
+
+        let scope = AnalysisScope(
+            dateInterval: nil,
+            workspacePath: "/tmp/alpha",
+            modelID: "gpt-5.4",
+            warningsOnly: true
+        )
+
+        let scopedSummary = await repository.scopedUsageSummary(matching: scope)
+        let scopedSessions = await repository.sessions(
+            matching: SessionListQuery(
+                searchText: "",
+                sort: .observedAtDescending,
+                scope: scope
+            )
+        )
+        let scopedWarnings = await repository.warnings(matching: scope, limit: nil)
+        let scopedModels = await repository.modelAggregates(
+            matching: ModelAggregateQuery(scope: scope)
+        )
+
+        #expect(scopedSummary.countedSessions == 1)
+        #expect(scopedSummary.warningCount == 1)
+        #expect(scopedSummary.usage.totalTokens == alpha.totalTokens)
+        #expect(scopedSessions.map(\.id) == [alpha.id])
+        #expect(scopedWarnings.map(\.id) == [alphaWarning.id])
+        #expect(scopedModels.map(\.displayName) == ["gpt-5.4"])
+        #expect(scopedModels.first?.usage.totalTokens == alpha.totalTokens)
     }
 
     @Test
@@ -225,33 +320,38 @@ struct InMemoryAnalyticsRepositoryTests {
         )
 
         let daily = await repository.trendBuckets(
-            matching: TrendQuery(granularity: .day, dateInterval: nil),
+            matching: TrendQuery(granularity: .day, scope: .all),
             calendar: calendar
         )
         let weekly = await repository.trendBuckets(
-            matching: TrendQuery(granularity: .week, dateInterval: nil),
+            matching: TrendQuery(granularity: .week, scope: .all),
             calendar: calendar
         )
         let filteredMonthly = await repository.trendBuckets(
             matching: TrendQuery(
                 granularity: .month,
-                dateInterval: DateInterval(
-                    start: makeDate(
-                        year: 2026,
-                        month: 3,
-                        day: 1,
-                        hour: 0,
-                        minute: 0,
-                        calendar: calendar
+                scope: AnalysisScope(
+                    dateInterval: DateInterval(
+                        start: makeDate(
+                            year: 2026,
+                            month: 3,
+                            day: 1,
+                            hour: 0,
+                            minute: 0,
+                            calendar: calendar
+                        ),
+                        end: makeDate(
+                            year: 2026,
+                            month: 4,
+                            day: 1,
+                            hour: 0,
+                            minute: 0,
+                            calendar: calendar
+                        )
                     ),
-                    end: makeDate(
-                        year: 2026,
-                        month: 4,
-                        day: 1,
-                        hour: 0,
-                        minute: 0,
-                        calendar: calendar
-                    )
+                    workspacePath: nil,
+                    modelID: nil,
+                    warningsOnly: false
                 )
             ),
             calendar: calendar
@@ -422,7 +522,7 @@ struct InMemoryAnalyticsRepositoryTests {
             matching: ModelTrendQuery(
                 modelID: "gpt-5.4",
                 granularity: .day,
-                dateInterval: nil
+                scope: .all
             ),
             calendar: calendar
         )
@@ -430,7 +530,7 @@ struct InMemoryAnalyticsRepositoryTests {
             matching: ModelTrendQuery(
                 modelID: ModelAggregate.unknownModelID,
                 granularity: .day,
-                dateInterval: nil
+                scope: .all
             ),
             calendar: calendar
         )
@@ -543,7 +643,7 @@ struct InMemoryAnalyticsRepositoryTests {
         let contributions = await repository.modelSessionContributions(
             matching: ModelSessionContributionQuery(
                 modelID: "gpt-5.4",
-                dateInterval: nil,
+                scope: .all,
                 limit: nil
             )
         )
@@ -611,7 +711,7 @@ struct InMemoryAnalyticsRepositoryTests {
         let estimate = await repository.costEstimate(
             matching: CostEstimateQuery(
                 pricingProfileName: "gpt-5.4",
-                dateInterval: nil
+                scope: .all
             )
         )
 
@@ -700,7 +800,7 @@ struct InMemoryAnalyticsRepositoryTests {
             matching: CostTrendQuery(
                 pricingProfileName: "gpt-5.4",
                 granularity: .day,
-                dateInterval: nil
+                scope: .all
             ),
             calendar: calendar
         )

@@ -104,9 +104,12 @@ Recommended page hierarchy:
 Global interaction rules:
 
 - Keep a shared filter bar in the window toolbar for time range, project path, model filter, and “warnings only.”
-- Use `7D`, `30D`, `90D`, `This Month`, and `Custom` for quick ranges.
+- Use `All Time`, `7D`, `30D`, `90D`, `This Month`, and `Custom` for quick ranges.
 - Let each page own its local sort order, but keep filters global so drill-down feels consistent.
 - Persist the last selected range and filters between launches.
+- Place the filters in toolbar order as range picker, custom date controls when needed, workspace filter, model filter, then warnings-only toggle.
+- Treat the toolbar model filter as an analysis-scope constraint: `Models`, `Cost`, and dashboard trends narrow to attributed usage for that model; `Sessions` narrows to sessions that contain matching attributed segments while still displaying whole-session totals.
+- If a restored workspace or model filter no longer exists in the imported dataset, clear only the invalid value and keep the remaining scope intact.
 
 Search, sort, and filter behavior:
 

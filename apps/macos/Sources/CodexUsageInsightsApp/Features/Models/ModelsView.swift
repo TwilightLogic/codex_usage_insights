@@ -24,9 +24,9 @@ struct ModelsView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.modelRows.isEmpty, model.importProgress == nil {
                     ContentUnavailableView(
-                        "No model attribution available",
+                        "No model usage matches the current filters",
                         systemImage: "questionmark.square.dashed",
-                        description: Text("Imported sessions exist, but the current dataset does not include attributed usage segments for model analysis.")
+                        description: Text("Imported sessions exist, but the active analysis scope does not currently include attributed segments for model analysis.")
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {

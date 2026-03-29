@@ -15,6 +15,18 @@ The system SHALL provide a shared query state for time range and other primary f
 - **WHEN** the user selects a different time range or trend granularity
 - **THEN** the system MUST refresh dashboard summaries, charts, and downstream analysis views from the same active filter state
 
+#### Scenario: User changes a primary filter
+- **WHEN** the user changes the active time range, custom range, workspace filter, model filter, or warnings-only toggle
+- **THEN** the system MUST recompute `Dashboard`, `Sessions`, `Models`, and `Cost` from the same active analysis scope
+
+#### Scenario: User drills down into another analysis view
+- **WHEN** the user moves from `Dashboard` or `Models` into `Sessions`
+- **THEN** the destination view MUST inherit the current active analysis scope instead of resetting to an unfiltered state
+
+#### Scenario: Restored filters are partially invalid
+- **WHEN** the app restores the previous analysis scope and one or more saved workspace or model filters are no longer valid for the current imported dataset
+- **THEN** the system MUST keep the still-valid parts of the scope, clear invalid values with a deterministic fallback, and avoid silent failure
+
 #### Scenario: Filters produce no rows
 - **WHEN** the active filters produce no matching results
 - **THEN** the system MUST show a zero-results empty state that distinguishes filtered emptiness from import failure
