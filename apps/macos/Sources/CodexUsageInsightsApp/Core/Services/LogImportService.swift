@@ -15,6 +15,9 @@ struct LogImportService: LogImporting {
         guard directoryExists(at: directoryURL) else {
             throw LogImportError.invalidDirectory(directoryURL.path)
         }
+        guard FileManager.default.isReadableFile(atPath: directoryURL.path) else {
+            throw LogImportError.permissionDenied(directoryURL.path)
+        }
 
         let logFiles = discoverLogFiles(at: directoryURL)
         progress(
@@ -489,13 +492,16 @@ private struct LogEvent: Decodable {
     }
 }
 
-private enum LogImportError: LocalizedError {
+enum LogImportError: LocalizedError {
     case invalidDirectory(String)
+    case permissionDenied(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidDirectory(let path):
             return "The selected directory does not exist or is not a folder: \(path)"
+        case .permissionDenied(let path):
+            return "Codex Usage Insights cannot read the selected folder right now: \(path)"
         }
     }
 }

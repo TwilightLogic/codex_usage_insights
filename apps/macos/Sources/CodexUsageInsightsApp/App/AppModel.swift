@@ -16,8 +16,16 @@ final class AppModel {
     var topSessions: [UsageSession] = []
     var importedSessions: [UsageSession] = []
     var sessionRows: [UsageSession] = []
+    var modelRows: [ModelAggregate] = []
+    var selectedModelTrendGranularity: TrendGranularity = .day
+    var modelTrendBuckets: [UsageTrendBucket] = []
+    var modelContributionRows: [ModelSessionContribution] = []
+    var availablePricingProfiles: [PricingProfile] = []
+    var selectedPricingProfileName: String?
+    var costEstimate: CostEstimate?
+    var costTrendBuckets: [CostTrendBucket] = []
     var recentWarnings: [ImportWarning] = []
-    var errorMessage: String?
+    var recoverableError: RecoverableErrorState?
 
     @ObservationIgnored
     private let directoryPicker: DirectoryPicking
@@ -68,7 +76,7 @@ final class AppModel {
     func chooseDirectory() {
         if let directoryURL = directoryPicker.pickDirectory() {
             selectedDirectoryURL = directoryURL
-            errorMessage = nil
+            recoverableError = nil
         }
     }
 
@@ -89,7 +97,7 @@ final class AppModel {
             return
         }
 
-        errorMessage = nil
+        recoverableError = nil
         importProgress = ImportProgress(
             totalFiles: 0,
             processedFiles: 0,
@@ -137,12 +145,17 @@ final class AppModel {
                 )
                 importedSessions = await repository.allSessions()
                 sessionRows = await repository.sessions(matching: .default)
+                modelRows = await repository.modelAggregates(matching: .default)
+                modelTrendBuckets = []
+                modelContributionRows = []
+                availablePricingProfiles = await repository.availablePricingProfiles()
+                await refreshCostState(using: repository)
                 recentWarnings = Array(result.warnings.prefix(5))
                 importProgress = nil
                 emitAutomationOutputIfNeeded(for: result.summary)
             } catch {
                 importProgress = nil
-                errorMessage = error.localizedDescription
+                recoverableError = RecoverableErrorState(error: error)
                 emitAutomationFailureIfNeeded(error)
             }
         }
@@ -201,11 +214,118 @@ final class AppModel {
                     )
                 ).prefix(5)
             )
+            await refreshCostState(using: repository)
         }
+    }
+
+    func refreshModelsData() {
+        let repository = self.repository
+
+        Task {
+            modelRows = await repository.modelAggregates(matching: .default)
+        }
+    }
+
+    func refreshModelDetail(for modelID: String?) {
+        guard let modelID else {
+            modelTrendBuckets = []
+            modelContributionRows = []
+            return
+        }
+
+        let repository = self.repository
+        let selectedModelTrendGranularity = self.selectedModelTrendGranularity
+
+        Task {
+            modelTrendBuckets = await repository.modelTrendBuckets(
+                matching: ModelTrendQuery(
+                    modelID: modelID,
+                    granularity: selectedModelTrendGranularity,
+                    dateInterval: nil
+                ),
+                calendar: .autoupdatingCurrent
+            )
+            modelContributionRows = await repository.modelSessionContributions(
+                matching: ModelSessionContributionQuery(
+                    modelID: modelID,
+                    dateInterval: nil,
+                    limit: 8
+                )
+            )
+        }
+    }
+
+    func refreshPricingProfiles() {
+        let repository = self.repository
+
+        Task {
+            availablePricingProfiles = await repository.availablePricingProfiles()
+            await refreshCostState(using: repository)
+        }
+    }
+
+    func refreshCostData() {
+        let repository = self.repository
+
+        Task {
+            await refreshCostState(using: repository)
+        }
+    }
+
+    func selectPricingProfile(named profileName: String?) {
+        selectedPricingProfileName = profileName
+        refreshCostData()
     }
 
     func openSessionsWorkspace() {
         selectedDestination = .sessions
+    }
+
+    func clearRecoverableError() {
+        recoverableError = nil
+    }
+
+    func resetImportedData() {
+        let repository = self.repository
+
+        Task {
+            await repository.clear()
+            summary = nil
+            trendBuckets = []
+            topSessions = []
+            importedSessions = []
+            sessionRows = []
+            modelRows = []
+            modelTrendBuckets = []
+            modelContributionRows = []
+            costEstimate = nil
+            costTrendBuckets = []
+            recentWarnings = []
+            latestImportResult = nil
+            recoverableError = nil
+        }
+    }
+
+    private func refreshCostState(using repository: InMemoryAnalyticsRepository) async {
+        costEstimate = await repository.costEstimate(
+            matching: CostEstimateQuery(
+                pricingProfileName: selectedPricingProfileName,
+                dateInterval: nil
+            )
+        )
+
+        if let selectedPricingProfileName {
+            costTrendBuckets = await repository.costTrendBuckets(
+                matching: CostTrendQuery(
+                    pricingProfileName: selectedPricingProfileName,
+                    granularity: selectedTrendGranularity,
+                    dateInterval: nil
+                ),
+                calendar: .autoupdatingCurrent
+            )
+        } else {
+            costTrendBuckets = []
+        }
     }
 
     private func emitAutomationOutputIfNeeded(for summary: UsageOverviewSummary) {
@@ -242,6 +362,31 @@ final class AppModel {
 
         if launchConfiguration.shouldExitAfterImport {
             NSApplication.shared.terminate(nil)
+        }
+    }
+}
+
+struct RecoverableErrorState: Hashable {
+    let title: String
+    let message: String
+    let resetSuggestion: String
+
+    init(error: Error) {
+        if let logImportError = error as? LogImportError {
+            switch logImportError {
+            case .invalidDirectory(let path):
+                title = "Selected Folder Is Missing"
+                message = "The app can no longer find a readable log folder at \(path). Choose a different folder or retry after restoring it."
+                resetSuggestion = "You can also reset imported data if you want to clear the current workspace and start over."
+            case .permissionDenied(let path):
+                title = "Folder Access Was Denied"
+                message = "The app does not currently have permission to read \(path). Retry after fixing permissions or choose another folder."
+                resetSuggestion = "If the workspace is now out of sync, reset imported data and import again."
+            }
+        } else {
+            title = "Import Failed"
+            message = error.localizedDescription
+            resetSuggestion = "Retry the import, choose a different folder, or reset imported data if the app state looks stale."
         }
     }
 }

@@ -15,6 +15,13 @@ protocol UsageSummaryQuerying: Sendable {
         calendar: Calendar
     ) async -> [UsageTrendBucket]
     func modelAggregates(matching query: ModelAggregateQuery) async -> [ModelAggregate]
+    func modelTrendBuckets(
+        matching query: ModelTrendQuery,
+        calendar: Calendar
+    ) async -> [UsageTrendBucket]
+    func modelSessionContributions(
+        matching query: ModelSessionContributionQuery
+    ) async -> [ModelSessionContribution]
 }
 
 protocol SessionLookupProviding: Sendable {
@@ -26,17 +33,46 @@ protocol SessionLookupProviding: Sendable {
 
 protocol PricingProfileProviding: Sendable {
     func availablePricingProfiles() async -> [PricingProfile]
+    func costEstimate(matching query: CostEstimateQuery) async -> CostEstimate?
+    func costTrendBuckets(
+        matching query: CostTrendQuery,
+        calendar: Calendar
+    ) async -> [CostTrendBucket]
 }
 
 protocol AnalyticsRepository: UsageSummaryQuerying, SessionLookupProviding, PricingProfileProviding {
     func replace(with result: ImportResult) async
+    func clear() async
 }
 
 actor InMemoryAnalyticsRepository: AnalyticsRepository {
+    private let builtInPricingProfiles: [PricingProfile] = [
+        PricingProfile(
+            reviewedOn: "2026-03-16",
+            name: "gpt-5.4",
+            description: "Public OpenAI API pricing proxy for GPT-5.4 usage.",
+            inputRatePerMillion: Decimal(string: "2.5") ?? 2.5,
+            cachedInputRatePerMillion: Decimal(string: "0.25") ?? 0.25,
+            outputRatePerMillion: Decimal(string: "15.0") ?? 15.0
+        ),
+        PricingProfile(
+            reviewedOn: "2026-03-16",
+            name: "gpt-5-mini",
+            description: "Public OpenAI API pricing proxy for GPT-5 mini usage.",
+            inputRatePerMillion: Decimal(string: "0.25") ?? 0.25,
+            cachedInputRatePerMillion: Decimal(string: "0.025") ?? 0.025,
+            outputRatePerMillion: Decimal(string: "2.0") ?? 2.0
+        )
+    ]
+
     private var latestResult: ImportResult?
 
     func replace(with result: ImportResult) async {
         latestResult = result
+    }
+
+    func clear() async {
+        latestResult = nil
     }
 
     func currentSummary() async -> UsageOverviewSummary? {
@@ -162,12 +198,7 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
     }
 
     func modelAggregates(matching query: ModelAggregateQuery) async -> [ModelAggregate] {
-        let segments = (latestResult?.segments ?? []).filter { segment in
-            guard let dateInterval = query.dateInterval else {
-                return true
-            }
-            return dateInterval.contains(segment.timestamp)
-        }
+        let segments = filteredSegments(in: query.dateInterval)
 
         let groupedSegments = Dictionary(grouping: segments, by: \.model)
         return groupedSegments.map { model, groupedSegments in
@@ -187,8 +218,114 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
         }
     }
 
+    func modelTrendBuckets(
+        matching query: ModelTrendQuery,
+        calendar: Calendar
+    ) async -> [UsageTrendBucket] {
+        let segments = filteredSegments(in: query.dateInterval)
+            .filter { $0.modelIdentifier == query.modelID }
+
+        var groupedUsage: [Date: TokenUsage] = [:]
+        for segment in segments {
+            let bucketStart = bucketStartDate(
+                for: segment.timestamp,
+                granularity: query.granularity,
+                calendar: calendar
+            )
+            groupedUsage[bucketStart, default: .zero] = groupedUsage[bucketStart, default: .zero]
+                .adding(segment.usage)
+        }
+
+        return groupedUsage.keys.sorted().map { startDate in
+            UsageTrendBucket(
+                startDate: startDate,
+                usage: groupedUsage[startDate] ?? .zero
+            )
+        }
+    }
+
+    func modelSessionContributions(
+        matching query: ModelSessionContributionQuery
+    ) async -> [ModelSessionContribution] {
+        guard let latestResult else {
+            return []
+        }
+
+        let sessionsByID = Dictionary(uniqueKeysWithValues: latestResult.sessions.map { ($0.id, $0) })
+        let groupedSegments = Dictionary(
+            grouping: filteredSegments(in: query.dateInterval).filter { $0.modelIdentifier == query.modelID },
+            by: \.sessionID
+        )
+
+        let contributions = groupedSegments.compactMap { sessionID, segments -> ModelSessionContribution? in
+            guard let session = sessionsByID[sessionID] else {
+                return nil
+            }
+
+            let attributedUsage = segments.reduce(TokenUsage.zero) { partialResult, segment in
+                partialResult.adding(segment.usage)
+            }
+
+            return ModelSessionContribution(
+                session: session,
+                attributedUsage: attributedUsage
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.attributedUsage.totalTokens == rhs.attributedUsage.totalTokens {
+                return lhs.session.observedAt > rhs.session.observedAt
+            }
+            return lhs.attributedUsage.totalTokens > rhs.attributedUsage.totalTokens
+        }
+
+        if let limit = query.limit {
+            return Array(contributions.prefix(limit))
+        }
+
+        return contributions
+    }
+
     func availablePricingProfiles() async -> [PricingProfile] {
-        []
+        builtInPricingProfiles
+    }
+
+    func costEstimate(matching query: CostEstimateQuery) async -> CostEstimate? {
+        guard let profile = pricingProfile(named: query.pricingProfileName) else {
+            return nil
+        }
+
+        return makeCostEstimate(
+            usage: aggregatedUsage(in: query.dateInterval),
+            profile: profile
+        )
+    }
+
+    func costTrendBuckets(
+        matching query: CostTrendQuery,
+        calendar: Calendar
+    ) async -> [CostTrendBucket] {
+        guard let profile = pricingProfile(named: query.pricingProfileName) else {
+            return []
+        }
+
+        let usageBuckets = await trendBuckets(
+            matching: TrendQuery(
+                granularity: query.granularity,
+                dateInterval: query.dateInterval
+            ),
+            calendar: calendar
+        )
+
+        return usageBuckets.map { bucket in
+            CostTrendBucket(
+                startDate: bucket.startDate,
+                estimatedCost: estimateUsageCost(
+                    usage: bucket.usage,
+                    profile: profile
+                ),
+                usage: bucket.usage
+            )
+        }
     }
 
     private func bucketStartDate(
@@ -206,5 +343,82 @@ actor InMemoryAnalyticsRepository: AnalyticsRepository {
             return calendar.dateInterval(of: .month, for: date)?.start
                 ?? calendar.startOfDay(for: date)
         }
+    }
+
+    private func filteredSegments(in dateInterval: DateInterval?) -> [UsageSegment] {
+        (latestResult?.segments ?? []).filter { segment in
+            guard let dateInterval else {
+                return true
+            }
+            return dateInterval.contains(segment.timestamp)
+        }
+    }
+
+    private func filteredSessions(in dateInterval: DateInterval?) -> [UsageSession] {
+        (latestResult?.sessions ?? []).filter { session in
+            guard let dateInterval else {
+                return true
+            }
+            return dateInterval.contains(session.observedAt)
+        }
+    }
+
+    private func aggregatedUsage(in dateInterval: DateInterval?) -> TokenUsage {
+        let segments = filteredSegments(in: dateInterval)
+        if !segments.isEmpty {
+            return segments.reduce(.zero) { partialResult, segment in
+                partialResult.adding(segment.usage)
+            }
+        }
+
+        return filteredSessions(in: dateInterval).reduce(.zero) { partialResult, session in
+            partialResult.adding(session.usage)
+        }
+    }
+
+    private func pricingProfile(named profileName: String?) -> PricingProfile? {
+        guard let profileName else {
+            return nil
+        }
+        return builtInPricingProfiles.first(where: { $0.name == profileName })
+    }
+
+    private func deriveBillableTokenBreakdown(from usage: TokenUsage) -> BillableTokenBreakdown {
+        let totalInputTokens = max(usage.inputTokens, 0)
+        let cachedInputTokens = min(max(usage.cachedInputTokens, 0), totalInputTokens)
+        let uncachedInputTokens = max(totalInputTokens - cachedInputTokens, 0)
+
+        return BillableTokenBreakdown(
+            uncachedInputTokens: uncachedInputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: max(usage.outputTokens, 0)
+        )
+    }
+
+    private func makeCostEstimate(
+        usage: TokenUsage,
+        profile: PricingProfile
+    ) -> CostEstimate {
+        let billableTokens = deriveBillableTokenBreakdown(from: usage)
+        return CostEstimate(
+            profile: profile,
+            usage: usage,
+            billableTokens: billableTokens,
+            estimatedCost: estimateUsageCost(usage: usage, profile: profile)
+        )
+    }
+
+    private func estimateUsageCost(
+        usage: TokenUsage,
+        profile: PricingProfile
+    ) -> Decimal {
+        let billableTokens = deriveBillableTokenBreakdown(from: usage)
+        let million = Decimal(1_000_000)
+
+        let uncachedInputCost = Decimal(billableTokens.uncachedInputTokens) / million * profile.inputRatePerMillion
+        let cachedInputCost = Decimal(billableTokens.cachedInputTokens) / million * profile.cachedInputRatePerMillion
+        let outputCost = Decimal(billableTokens.outputTokens) / million * profile.outputRatePerMillion
+
+        return uncachedInputCost + cachedInputCost + outputCost
     }
 }

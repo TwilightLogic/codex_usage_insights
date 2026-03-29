@@ -197,6 +197,10 @@ struct UsageSegment: Identifiable, Hashable, Sendable {
     var modelDisplayName: String {
         model ?? ModelAggregate.unknownModelDisplayName
     }
+
+    var modelIdentifier: String {
+        model ?? ModelAggregate.unknownModelID
+    }
 }
 
 struct ModelAggregateQuery: Hashable, Sendable {
@@ -206,6 +210,7 @@ struct ModelAggregateQuery: Hashable, Sendable {
 }
 
 struct ModelAggregate: Identifiable, Hashable, Sendable {
+    static let unknownModelID = "unknown-model"
     static let unknownModelDisplayName = "Unknown Model"
 
     let model: String?
@@ -213,7 +218,7 @@ struct ModelAggregate: Identifiable, Hashable, Sendable {
     let sessionCount: Int
 
     var id: String {
-        model ?? "unknown-model"
+        model ?? Self.unknownModelID
     }
 
     var displayName: String {
@@ -222,6 +227,27 @@ struct ModelAggregate: Identifiable, Hashable, Sendable {
 
     var isUnknownModel: Bool {
         model == nil
+    }
+}
+
+struct ModelTrendQuery: Hashable, Sendable {
+    let modelID: String
+    let granularity: TrendGranularity
+    let dateInterval: DateInterval?
+}
+
+struct ModelSessionContributionQuery: Hashable, Sendable {
+    let modelID: String
+    let dateInterval: DateInterval?
+    let limit: Int?
+}
+
+struct ModelSessionContribution: Identifiable, Hashable, Sendable {
+    let session: UsageSession
+    let attributedUsage: TokenUsage
+
+    var id: String {
+        session.id
     }
 }
 
@@ -248,11 +274,59 @@ struct ImportWarning: Identifiable, Hashable, Sendable {
 }
 
 struct PricingProfile: Hashable, Sendable {
+    let reviewedOn: String?
     let name: String
     let description: String
-    let inputRatePerMillion: Double
-    let cachedInputRatePerMillion: Double
-    let outputRatePerMillion: Double
+    let inputRatePerMillion: Decimal
+    let cachedInputRatePerMillion: Decimal
+    let outputRatePerMillion: Decimal
+
+    var id: String {
+        name
+    }
+
+    var formulaText: String {
+        "Estimated cost = uncached input × \(inputRatePerMillion.decimalDisplayString)/M + cached input × \(cachedInputRatePerMillion.decimalDisplayString)/M + output × \(outputRatePerMillion.decimalDisplayString)/M"
+    }
+}
+
+struct BillableTokenBreakdown: Hashable, Sendable {
+    let uncachedInputTokens: Int
+    let cachedInputTokens: Int
+    let outputTokens: Int
+}
+
+struct CostEstimateQuery: Hashable, Sendable {
+    let pricingProfileName: String?
+    let dateInterval: DateInterval?
+
+    static let `default` = CostEstimateQuery(
+        pricingProfileName: nil,
+        dateInterval: nil
+    )
+}
+
+struct CostTrendQuery: Hashable, Sendable {
+    let pricingProfileName: String
+    let granularity: TrendGranularity
+    let dateInterval: DateInterval?
+}
+
+struct CostEstimate: Hashable, Sendable {
+    let profile: PricingProfile
+    let usage: TokenUsage
+    let billableTokens: BillableTokenBreakdown
+    let estimatedCost: Decimal
+}
+
+struct CostTrendBucket: Identifiable, Hashable, Sendable {
+    let startDate: Date
+    let estimatedCost: Decimal
+    let usage: TokenUsage
+
+    var id: Date {
+        startDate
+    }
 }
 
 enum CostEstimateStatus: String, Hashable, Sendable {
@@ -290,4 +364,10 @@ struct ImportResult: Sendable {
     let sessions: [UsageSession]
     let segments: [UsageSegment]
     let warnings: [ImportWarning]
+}
+
+extension Decimal {
+    var decimalDisplayString: String {
+        NSDecimalNumber(decimal: self).stringValue
+    }
 }

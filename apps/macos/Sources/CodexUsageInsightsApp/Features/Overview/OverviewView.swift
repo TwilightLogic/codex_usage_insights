@@ -20,10 +20,6 @@ struct OverviewView: View {
                     progressPanel(importProgress)
                 }
 
-                if let errorMessage = model.errorMessage {
-                    errorPanel(errorMessage)
-                }
-
                 if let summary = model.summary {
                     if summary.warningCount > 0 {
                         warningBanner(summary)
@@ -88,16 +84,6 @@ struct OverviewView: View {
         }
     }
 
-    private func errorPanel(_ errorMessage: String) -> some View {
-        GroupBox {
-            Text(errorMessage)
-                .foregroundStyle(.red)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            Label("Import Failed", systemImage: "exclamationmark.triangle")
-        }
-    }
-
     private func progressPanel(_ progress: ImportProgress) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
@@ -135,7 +121,11 @@ struct OverviewView: View {
                     MetricTileView(title: "Uncached Input", value: summary.usage.uncachedInputTokens.formatted())
                     MetricTileView(title: "Cached Input", value: summary.usage.cachedInputTokens.formatted())
                     MetricTileView(title: "Output Tokens", value: summary.usage.outputTokens.formatted())
-                    MetricTileView(title: "Estimated Cost", value: "Unavailable", emphasis: false)
+                    MetricTileView(
+                        title: "Estimated Cost",
+                        value: model.costEstimate.map { currencyString($0.estimatedCost) } ?? "Unavailable",
+                        emphasis: model.costEstimate != nil
+                    )
                 }
             }
         }
@@ -273,5 +263,14 @@ struct OverviewView: View {
             description: Text("This first slice only validates the import path: pick a folder, run one import, and inspect the base summary.")
         )
         .frame(maxWidth: .infinity, minHeight: 260)
+    }
+
+    private func currencyString(_ value: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "USD"
+        formatter.maximumFractionDigits = 4
+        formatter.minimumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: value)) ?? "$0.00"
     }
 }

@@ -13,17 +13,24 @@ struct SessionsView: View {
     var body: some View {
         HSplitView {
             VStack(alignment: .leading, spacing: 12) {
+                if let importProgress = model.importProgress {
+                    ImportActivityBanner(
+                        progress: importProgress,
+                        hasPriorData: !model.importedSessions.isEmpty
+                    )
+                }
+
                 TextField("Search sessions", text: $searchText)
                     .textFieldStyle(.roundedBorder)
 
-                if model.importedSessions.isEmpty {
+                if model.importedSessions.isEmpty, model.importProgress == nil {
                     ContentUnavailableView(
                         "No imported sessions yet",
                         systemImage: "tray",
                         description: Text("Run an import from Dashboard first, then come back here to inspect sessions.")
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if model.sessionRows.isEmpty {
+                } else if model.sessionRows.isEmpty, model.importProgress == nil {
                     ContentUnavailableView.search(text: searchText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {

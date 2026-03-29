@@ -5,9 +5,9 @@ struct PlaceholderDestinationView: View {
 
     var body: some View {
         ContentUnavailableView(
-            "\(destination.title) Comes Next",
+            "\(destination.title) Is Still In Progress",
             systemImage: destination.systemImage,
-            description: Text("This first vertical slice stops after folder selection, one-shot import, and base summary rendering.")
+            description: Text("This destination has not been implemented yet for the current MVP slice.")
         )
     }
 }

@@ -25,7 +25,7 @@
 - [x] 4.2 Implement initial import progress reporting with scanned-file, imported-session, and warning counts
 - [x] 4.3 Implement refresh with file fingerprint deduplication so unchanged logs are not re-imported
 - [x] 4.4 Add stale-on-foreground auto-refresh and a manual toolbar refresh action
-- [ ] 4.5 Add recoverable error handling for missing paths, permission failures, and local store reset
+- [x] 4.5 Add recoverable error handling for missing paths, permission failures, and local store reset
 
 ## 5. Build the analytics query layer
 
@@ -43,14 +43,14 @@
 
 ## 7. Build models and cost analysis
 
-- [ ] 7.1 Build the `Models` view with aggregate rows, trend visualization, and per-model session contribution drill-down
-- [ ] 7.2 Implement pricing-profile loading, selection, and estimated-cost calculation using subset-aware billing semantics
-- [ ] 7.3 Build the `Cost` view with profile disclosure, formula text, billable-token breakdown, and estimate caveats
-- [ ] 7.4 Ensure unsupported metrics such as `cache create` and provider-native `billing block` are clearly unavailable rather than synthesized
+- [x] 7.1 Build the `Models` view with aggregate rows, trend visualization, and per-model session contribution drill-down
+- [x] 7.2 Implement pricing-profile loading, selection, and estimated-cost calculation using subset-aware billing semantics
+- [x] 7.3 Build the `Cost` view with profile disclosure, formula text, billable-token breakdown, and estimate caveats
+- [x] 7.4 Ensure unsupported metrics such as `cache create` and provider-native `billing block` are clearly unavailable rather than synthesized
 
 ## 8. Polish MVP states, performance, and validation
 
-- [ ] 8.1 Add empty, loading, zero-results, partial-data, and recoverable-error states across all primary views
+- [x] 8.1 Add empty, loading, zero-results, partial-data, and recoverable-error states across all primary views
 - [ ] 8.2 Profile import and query performance against a larger real local session dataset and add the missing database indexes
 - [ ] 8.3 Add UI and integration tests for onboarding, import, dashboard refresh, session drill-down, model breakdown, and cost estimation
 - [ ] 8.4 Write MVP usage documentation and a release checklist that maps directly to the acceptance criteria in the design
